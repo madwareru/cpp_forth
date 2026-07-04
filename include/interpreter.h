@@ -1,0 +1,640 @@
+#pragma once
+
+#include <vector>
+#include <string>
+#include <string_view>
+#include <cstdint>
+
+/// An operation tag used to mark all primitive operations
+enum class operation_tag_t;
+
+/// An operation along with its payload
+struct operation_t {
+    operation_tag_t tag;
+    std::int32_t payload;
+};
+
+/// A word composed of primitive operations
+using word_t = std::vector<operation_t>;
+
+/// A tag used for values
+enum class value_tag_t { Number, Word };
+
+/// A tagged union for values that may be stored in a stack
+struct value_t {
+    value_t(std::int32_t n);
+    value_t(word_t& w);
+
+    /// if matches number, places a number value in out
+    /// and returns true, otherwise returns false
+    bool matches_number(std::int32_t& out) const;
+
+    /// if matches word, clears out, then fills it with ops from value
+    /// and returns true, otherwise returns false
+    bool matches_word(word_t& out) const;
+
+private:
+    value_tag_t tag;
+    std::int32_t number_v;
+    word_t word_v;
+};
+
+/// A stack of current values
+using iterpreter_stack_t = std::vector<value_t>;
+
+/// An entry in a stack of words
+struct word_entry_t { std::int32_t key; word_t word; };
+
+/// A stack of words
+using word_stack_t = std::vector<word_entry_t>;
+
+/// A context of an interpreter storing all the data needed for an interpretation
+struct interpeter_context_t {
+    word_stack_t word_stack;
+    iterpreter_stack_t stack;
+    std::size_t word_recorder_nesting;
+    word_t recording_word;
+};
+
+/// A function which parses a program, then interpret it, and stores
+/// the result in res in the case of successful execution
+bool eval_program(const std::string& program_text, std::int32_t& res);
+
+/// A function which interpret a sequence of operations from the word
+bool eval_word(const word_t& word, interpeter_context_t& context);
+
+/// A function which interpret an operation from the word
+bool eval_operation(const operation_t& op, interpeter_context_t& context);
+
+/// A function that tries to parse a single operation
+bool try_parse_operation(const std::string_view& sv, operation_t& op);
+
+/// A function that tries to parse a word of operations
+word_t try_parse_word(const std::string& s, bool& success);
+
+#ifdef interpreter_impl
+
+#include <iostream>
+
+value_t::value_t(std::int32_t n) {
+    tag = value_tag_t::Number;
+    number_v = n;
+    word_v = word_t(0);
+}
+
+value_t::value_t(word_t& w) {
+    tag = value_tag_t::Word;
+    number_v = 0;
+    word_v = word_t{};
+    for(operation_t op : w)
+        word_v.push_back(op);
+}
+
+bool value_t::matches_number(std::int32_t& out) const {
+    if (tag == value_tag_t::Number) {
+        out = number_v;
+        return true;
+    }
+    return false;
+}
+
+bool value_t::matches_word(word_t& out) const {
+    if (tag == value_tag_t::Word) {
+        out.clear();
+        for(const operation_t& op : word_v)
+            out.push_back(op);
+        return true;
+    }
+    return false;
+}
+
+static std::vector<std::string> interned_strings;
+const std::string STRING_MISSING = "[[[STRING IS MISSING]]]";
+
+const std::string& get_interned_string(std::int32_t id) {
+    return id >= 0 && ((std::size_t) id < interned_strings.size())
+        ? interned_strings[(std::size_t) id]
+        : STRING_MISSING;
+}
+
+bool is_all_digits(const std::string_view& sv, std::int32_t& payload) {
+    for (const char& c : sv)
+        if (c < '0' || c > '9')
+            return false;
+
+    payload = 0;
+    for (const char& c : sv)
+        payload = payload * 10 + (c - '0');
+    return true;
+}
+
+// Attention: this check is always true,
+// so CallWord should be at the end of an enumeration
+bool is_call_word(const std::string_view& sv, std::int32_t& payload) {
+    for (std::size_t i = 0; i < interned_strings.size(); i++) {
+        if (interned_strings[i] == sv) {
+            payload = (std::int32_t) i;
+            return true;
+        }
+    }
+
+    payload = (std::int32_t) interned_strings.size();
+    interned_strings.push_back(std::string(sv));
+    return true;
+}
+
+bool is_store_word(const std::string_view& sv, std::int32_t& payload) {
+    if (sv.size() < 2 || sv[0] != ':')
+        return false;
+
+    auto sub_sv = sv.substr(1, sv.size() - 1);
+    return is_call_word(sub_sv, payload);
+}
+
+bool is_bind_to_word(const std::string_view& sv, std::int32_t& payload) {
+    if (sv.size() < 2 || sv[0] != '!')
+        return false;
+
+    auto sub_sv = sv.substr(1, sv.size() - 1);
+    return is_call_word(sub_sv, payload);
+}
+
+#define OP_CASES(X_TOKEN, X_CALL) \
+    X_CALL(Push, is_all_digits, eval_push) \
+    X_TOKEN(Add, "+", eval_add) \
+    X_TOKEN(Sub, "-", eval_sub) \
+    X_TOKEN(Mul, "*", eval_mul) \
+    X_TOKEN(Div, "/", eval_div) \
+    X_TOKEN(LessThan, "<", eval_less_than) \
+    X_TOKEN(Print, ".", eval_print) \
+    X_TOKEN(IfElse, "ifelse", eval_if_else) \
+    X_TOKEN(StartRecord, "[", eval_start_record) \
+    X_TOKEN(EndRecord, "]", eval_end_record) \
+    X_CALL(StoreWord, is_store_word, eval_store_word) \
+    X_CALL(BindToWord, is_bind_to_word, eval_bind_to_word) \
+    X_CALL(CallWord, is_call_word, eval_call_word)
+
+enum class operation_tag_t {
+    #define OP_CASE(name, _, __) name,
+        OP_CASES(OP_CASE, OP_CASE)
+    #undef OP_CASE
+};
+
+bool eval_push(std::int32_t num, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Push, num);
+        return true;
+    }
+    context.stack.push_back(num);
+
+    return true;
+}
+
+bool eval_add(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Add, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 2) {
+        std::cerr << "Error: trying to get a sum of two values, while stack size is less than 2" << std::endl;
+        return false;
+    }
+
+    std::int32_t lhs, rhs;
+
+    if (!context.stack.back().matches_number(rhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    if (!context.stack.back().matches_number(lhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    context.stack.push_back(lhs + rhs);
+    return true;
+}
+
+bool eval_sub(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Sub, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 2) {
+        std::cerr << "Error: trying to get a sub of two values, while stack size is less than 2" << std::endl;
+        return false;
+    }
+
+    std::int32_t lhs, rhs;
+
+    if (!context.stack.back().matches_number(rhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    if (!context.stack.back().matches_number(lhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    context.stack.push_back(lhs - rhs);
+    return true;
+}
+
+bool eval_mul(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Mul, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 2) {
+        std::cerr << "Error: trying to get a mul of two values, while stack size is less than 2" << std::endl;
+        return false;
+    }
+
+    std::int32_t lhs, rhs;
+
+    if (!context.stack.back().matches_number(rhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    if (!context.stack.back().matches_number(lhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    context.stack.push_back(lhs * rhs);
+        return true;
+}
+
+bool eval_div(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Div, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 2) {
+        std::cerr << "Error: trying to get a div of two values, while stack size is less than 2" << std::endl;
+        return false;
+    }
+
+    std::int32_t lhs, rhs;
+
+    if (!context.stack.back().matches_number(rhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+    if (rhs == 0) {
+        std::cerr << "Error: Division by zero" << std::endl;
+        return false;
+    }
+
+    if (!context.stack.back().matches_number(lhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    context.stack.push_back(lhs / rhs);
+        return true;
+}
+
+bool eval_less_than(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::LessThan, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 2) {
+        std::cerr << "Error: trying to compare two values, while stack size is less than 2" << std::endl;
+        return false;
+    }
+
+    std::int32_t lhs, rhs;
+
+    if (!context.stack.back().matches_number(rhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    if (!context.stack.back().matches_number(lhs)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    context.stack.push_back(lhs < rhs ? 1 : 0);
+        return true;
+}
+
+bool eval_print(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Print, payload);
+        return true;
+    }
+
+    if (context.stack.empty()) {
+        std::cerr << "Error: trying to pop a value from an empty stack" << std::endl;
+        return false;
+    }
+
+    std::int32_t x;
+    if (!context.stack.back().matches_number(x)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    std::cout << x << std::endl;
+
+    return true;
+}
+
+bool eval_if_else(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::IfElse, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 3) {
+        std::cerr << "Error: Expected a stack size to be 3 or more" << std::endl;
+        return false;
+    }
+
+    word_t else_word;
+    if (!context.stack.back().matches_word(else_word)) {
+        std::cerr << "Error: Expected a word on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    word_t then_word;
+    if (!context.stack.back().matches_word(then_word)) {
+        std::cerr << "Error: Expected a word on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    std::int32_t cond;
+    if (!context.stack.back().matches_number(cond)) {
+        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    auto old_word_stack_size = context.word_stack.size();
+    if (cond) {
+        if (!eval_word(then_word, context))
+            return false;
+    } else {
+        if (!eval_word(else_word, context))
+            return false;
+    }
+
+    // We need to restore old word_stack after successful execution
+    while (context.word_stack.size() > old_word_stack_size)
+        context.word_stack.pop_back();
+    return true;
+}
+
+bool eval_start_record(std::int32_t payload, interpeter_context_t& context) {
+    ++context.word_recorder_nesting;
+    if (context.word_recorder_nesting > 1) {
+        context.recording_word.emplace_back(operation_tag_t::StartRecord, payload);
+    }
+    return true;
+}
+
+bool eval_end_record(std::int32_t payload, interpeter_context_t& context) {
+    if (context.word_recorder_nesting < 1) {
+        std::cerr << "Error: Tried to decreased word recoder nesting while it is less than one" << std::endl;
+        return false;
+    }
+
+    --context.word_recorder_nesting;
+    if (context.word_recorder_nesting == 0) {
+        context.stack.push_back(context.recording_word);
+        context.recording_word.clear();
+        return true;
+    }
+
+    context.recording_word.emplace_back(operation_tag_t::EndRecord, payload);
+    return true;
+}
+
+bool eval_store_word(std::int32_t word_id, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::StoreWord, word_id);
+        return true;
+    }
+
+    if (context.stack.empty()) {
+        std::cerr << "Error: trying to store word while stack is empty" << std::endl;
+        return false;
+    }
+
+    word_t word;
+    if (!context.stack.back().matches_word(word)) {
+        std::cerr << "Error: Expected a word on a top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    context.word_stack.emplace_back(word_id, word);
+    return true;
+}
+
+bool eval_bind_to_word(std::int32_t word_id, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::BindToWord, word_id);
+        return true;
+    }
+
+    if (context.stack.empty()) {
+        std::cerr << "Error: trying to bind word while stack is empty" << std::endl;
+        return false;
+    }
+
+    std::int32_t num;
+    if (!context.stack.back().matches_number(num)) {
+        std::cerr << "Error: Expected a number on a top of a stack" << std::endl;
+        return false;
+    }
+    context.stack.pop_back();
+
+    word_t word;
+    word.emplace_back(operation_tag_t::Push, num);
+    context.word_stack.emplace_back(word_id, word);
+
+    return true;
+}
+
+bool eval_call_word(std::int32_t word_id, interpeter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::CallWord, word_id);
+        return true;
+    }
+
+    auto old_word_stack_size = context.word_stack.size();
+    for (std::size_t i = 0; i < old_word_stack_size; i++) {
+        auto idx = old_word_stack_size - 1 - i;
+        const word_entry_t& word_entry = context.word_stack[idx];
+        if (word_entry.key == word_id) {
+            if (!eval_word(word_entry.word, context))
+                return false;
+
+            // We need to restore old word_stack after successful execution
+            while (context.word_stack.size() > old_word_stack_size)
+                context.word_stack.pop_back();
+            return true;
+        }
+    }
+
+    std::cerr << "Error: a word '" << get_interned_string(word_id) << "' not found in a word stack" << std::endl;
+    return false;
+}
+
+bool eval_word(const word_t& word, interpeter_context_t& context) {
+    for (const operation_t& op : word) {
+        if (!eval_operation(op, context)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool eval_operation(const operation_t& op, interpeter_context_t& context) {
+    #define OP_CASE(name, _, function) \
+        if (op.tag == operation_tag_t::name) { \
+            return function(op.payload, context); \
+        }
+    OP_CASES(OP_CASE, OP_CASE)
+    #undef OP_CASE
+    return false;
+}
+
+bool try_parse_operation(const std::string_view& sv, operation_t& op) {
+    #define OP_CALL(name, predicate, _) \
+        if (std::int32_t payload; predicate(sv, payload)) { \
+            op = { operation_tag_t::name, payload }; \
+            return true; \
+        }
+    #define OP_TOKEN(name, literal, _) \
+        if (sv == literal) { \
+            op = { operation_tag_t::name, 0 }; \
+            return true; \
+        }
+    OP_CASES(OP_TOKEN, OP_CALL)
+    #undef OP_TOKEN
+    #undef OP_CALL
+    return false;
+}
+
+bool is_whitespace(char ch) {
+    return
+        ch == ' ' ||
+        ch == '\t' ||
+        ch == '\n';
+}
+
+word_t try_parse_word(const std::string& s, bool& success) {
+    word_t word;
+    std::size_t start = 0;
+    do {
+        // Step 1: Searching for first non-whitespace character
+        while(start < s.size() && is_whitespace(s[start]))
+            ++start;
+
+        // Step 1.a: If we reached the end, quit immediately
+        if (start == s.size()) {
+            success = true;
+            return word;
+        }
+
+        // Step 2: Searching for next first pos of a whitespace character
+        std::size_t pos = std::min(
+            std::min(
+                s.find(' ', start),
+                s.find('\t', start)
+            ),
+            s.find('\n', start)
+        );
+
+        // Step 2.a: If no pos found, just process a tail of a string and quit
+        if (pos == std::string::npos) {
+            std::string_view sv = std::string_view(s).substr(start, s.size() - start);
+            if (operation_t op; try_parse_operation(sv, op)) {
+                word.push_back(op);
+                success = true;
+                return word;
+            } else {
+                success = false;
+                return word_t(0);
+            }
+        }
+
+        // Step 2.b: If pos found, get a view for substring between start and pos, process it
+        std::string_view sv = std::string_view(s).substr(start, pos - start);
+        if (operation_t op; try_parse_operation(sv, op)) {
+            word.push_back(op);
+        } else {
+            success = false;
+            return word_t(0);
+        }
+
+        // Step 3: Make a start pointing to pos + 1 and go to the next iteration
+        start = pos + 1;
+    } while(start < s.size());
+
+    success = true;
+    return word;
+}
+
+bool eval_program(const std::string& program_text, std::int32_t& res) {
+    bool successful_parse = false;
+    word_t word = try_parse_word(program_text, successful_parse);
+    if (!successful_parse) {
+        std::cerr << "Error: Failed to parse a program" << std::endl;
+        return false;
+    }
+
+    interpeter_context_t context = {
+        word_stack_t{},
+        iterpreter_stack_t{},
+        0,
+        word_t{}
+    };
+
+    if (!eval_word(word, context)) {
+        std::cerr << "Error: Program evaluation failed" << std::endl;
+        return false;
+    }
+
+    if (context.stack.empty()) {
+        std::cerr << "Error: resulting stack is empty, expected at leas one number on top" << std::endl;
+        return false;
+    }
+
+    std::int32_t num;
+    if (!context.stack.back().matches_number(num)) {
+        std::cerr << "Error: Expected a number on a top of a stack" << std::endl;
+        return false;
+    }
+
+    res = num;
+    return true;
+}
+
+#endif
