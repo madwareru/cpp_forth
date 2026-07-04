@@ -22,10 +22,23 @@ const std::string EXAMPLE_PROGRAM =
 
 int main() {
     std::int32_t res = 0;
+
     if(!eval_program(EXAMPLE_PROGRAM, res)) {
         return 1;
     }
-
     std::cout << "Result of a program is " << res << std::endl;
+
+    std::string next_command;
+    while(next_command != "quit") {
+        std::cout << "> ";
+        std::getline(std::cin, next_command);
+        if (next_command != "quit") {
+            if(!eval_program(next_command, res)) {
+                return 1;
+            }
+            std::cout << "Result of a program is " << res << std::endl;
+        }
+    }
+
     return 0;
 }
