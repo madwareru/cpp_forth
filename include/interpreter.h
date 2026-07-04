@@ -40,7 +40,7 @@ private:
 };
 
 /// A stack of current values
-using iterpreter_stack_t = std::vector<value_t>;
+using interpreter_stack_t = std::vector<value_t>;
 
 /// An entry in a stack of words
 struct word_entry_t { std::int32_t key; word_t word; };
@@ -49,9 +49,9 @@ struct word_entry_t { std::int32_t key; word_t word; };
 using word_stack_t = std::vector<word_entry_t>;
 
 /// A context of an interpreter storing all the data needed for an interpretation
-struct interpeter_context_t {
+struct interpreter_context_t {
     word_stack_t word_stack;
-    iterpreter_stack_t stack;
+    interpreter_stack_t stack;
     std::size_t word_recorder_nesting;
     word_t recording_word;
 };
@@ -61,10 +61,10 @@ struct interpeter_context_t {
 bool eval_program(const std::string& program_text, std::int32_t& res);
 
 /// A function which interpret a sequence of operations from the word
-bool eval_word(const word_t& word, interpeter_context_t& context);
+bool eval_word(const word_t& word, interpreter_context_t& context);
 
 /// A function which interpret an operation from the word
-bool eval_operation(const operation_t& op, interpeter_context_t& context);
+bool eval_operation(const operation_t& op, interpreter_context_t& context);
 
 /// A function that tries to parse a single operation
 bool try_parse_operation(const std::string_view& sv, operation_t& op);
@@ -76,17 +76,11 @@ word_t try_parse_word(const std::string& s, bool& success);
 
 #include <iostream>
 
-value_t::value_t(std::int32_t n) {
-    tag = value_tag_t::Number;
-    number_v = n;
-    word_v = word_t(0);
-}
+value_t::value_t(std::int32_t n)
+    : tag(value_tag_t::Number), number_v(n), word_v(word_t(0)){}
 
-value_t::value_t(const word_t& w) {
-    tag = value_tag_t::Word;
-    number_v = 0;
-    word_v = w;
-}
+value_t::value_t(const word_t& w)
+    : tag(value_tag_t::Word), number_v(0), word_v(w) {}
 
 bool value_t::matches_number(std::int32_t& out) const {
     if (tag == value_tag_t::Number) {
@@ -178,7 +172,7 @@ enum class operation_tag_t {
     #undef OP_CASE
 };
 
-bool eval_push(std::int32_t num, interpeter_context_t& context) {
+bool eval_push(std::int32_t num, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::Push, num);
         return true;
@@ -188,7 +182,7 @@ bool eval_push(std::int32_t num, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_add(std::int32_t payload, interpeter_context_t& context) {
+bool eval_add(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::Add, payload);
         return true;
@@ -217,7 +211,7 @@ bool eval_add(std::int32_t payload, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_sub(std::int32_t payload, interpeter_context_t& context) {
+bool eval_sub(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::Sub, payload);
         return true;
@@ -246,7 +240,7 @@ bool eval_sub(std::int32_t payload, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_mul(std::int32_t payload, interpeter_context_t& context) {
+bool eval_mul(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::Mul, payload);
         return true;
@@ -275,7 +269,7 @@ bool eval_mul(std::int32_t payload, interpeter_context_t& context) {
         return true;
 }
 
-bool eval_div(std::int32_t payload, interpeter_context_t& context) {
+bool eval_div(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::Div, payload);
         return true;
@@ -308,7 +302,7 @@ bool eval_div(std::int32_t payload, interpeter_context_t& context) {
         return true;
 }
 
-bool eval_less_than(std::int32_t payload, interpeter_context_t& context) {
+bool eval_less_than(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::LessThan, payload);
         return true;
@@ -337,7 +331,7 @@ bool eval_less_than(std::int32_t payload, interpeter_context_t& context) {
         return true;
 }
 
-bool eval_print(std::int32_t payload, interpeter_context_t& context) {
+bool eval_print(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::Print, payload);
         return true;
@@ -360,7 +354,7 @@ bool eval_print(std::int32_t payload, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_if_else(std::int32_t payload, interpeter_context_t& context) {
+bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::IfElse, payload);
         return true;
@@ -407,7 +401,7 @@ bool eval_if_else(std::int32_t payload, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_start_record(std::int32_t payload, interpeter_context_t& context) {
+bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
     ++context.word_recorder_nesting;
     if (context.word_recorder_nesting > 1) {
         context.recording_word.emplace_back(operation_tag_t::StartRecord, payload);
@@ -415,7 +409,7 @@ bool eval_start_record(std::int32_t payload, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_end_record(std::int32_t payload, interpeter_context_t& context) {
+bool eval_end_record(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting < 1) {
         std::cerr << "Error: Tried to decreased word recoder nesting while it is less than one" << std::endl;
         return false;
@@ -432,7 +426,7 @@ bool eval_end_record(std::int32_t payload, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_store_word(std::int32_t word_id, interpeter_context_t& context) {
+bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::StoreWord, word_id);
         return true;
@@ -454,7 +448,7 @@ bool eval_store_word(std::int32_t word_id, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_bind_to_word(std::int32_t word_id, interpeter_context_t& context) {
+bool eval_bind_to_word(std::int32_t word_id, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::BindToWord, word_id);
         return true;
@@ -479,7 +473,7 @@ bool eval_bind_to_word(std::int32_t word_id, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_call_word(std::int32_t word_id, interpeter_context_t& context) {
+bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::CallWord, word_id);
         return true;
@@ -504,7 +498,7 @@ bool eval_call_word(std::int32_t word_id, interpeter_context_t& context) {
     return false;
 }
 
-bool eval_word(const word_t& word, interpeter_context_t& context) {
+bool eval_word(const word_t& word, interpreter_context_t& context) {
     for (const operation_t& op : word) {
         if (!eval_operation(op, context)) {
             return false;
@@ -513,7 +507,7 @@ bool eval_word(const word_t& word, interpeter_context_t& context) {
     return true;
 }
 
-bool eval_operation(const operation_t& op, interpeter_context_t& context) {
+bool eval_operation(const operation_t& op, interpreter_context_t& context) {
     #define OP_CASE(name, _, function) \
         if (op.tag == operation_tag_t::name) { \
             return function(op.payload, context); \
@@ -608,9 +602,9 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         return false;
     }
 
-    interpeter_context_t context = {
+    interpreter_context_t context = {
         word_stack_t{},
-        iterpreter_stack_t{},
+        interpreter_stack_t{},
         0,
         word_t{}
     };
