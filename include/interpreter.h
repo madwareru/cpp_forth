@@ -23,7 +23,7 @@ enum class value_tag_t { Number, Word };
 /// A tagged union for values that may be stored in a stack
 struct value_t {
     value_t(std::int32_t n);
-    value_t(word_t& w);
+    value_t(const word_t& w);
 
     /// if matches number, places a number value in out
     /// and returns true, otherwise returns false
@@ -82,12 +82,10 @@ value_t::value_t(std::int32_t n) {
     word_v = word_t(0);
 }
 
-value_t::value_t(word_t& w) {
+value_t::value_t(const word_t& w) {
     tag = value_tag_t::Word;
     number_v = 0;
-    word_v = word_t{};
-    for(operation_t op : w)
-        word_v.push_back(op);
+    word_v = w;
 }
 
 bool value_t::matches_number(std::int32_t& out) const {
