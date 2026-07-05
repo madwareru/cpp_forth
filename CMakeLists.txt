@@ -1,4 +1,13 @@
 cmake_minimum_required(VERSION 3.15)
+
+include(FetchContent)
+FetchContent_Declare(
+  catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG v3.15.1
+)
+FetchContent_MakeAvailable(catch2)
+
 project(CppForth VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Для редакторов
@@ -6,7 +15,15 @@ set(CMAKE_CXX_STANDARD 20)
 
 # Автоматический поиск исходников
 file(GLOB_RECURSE SOURCES "src/*.cpp")
+file(GLOB_RECURSE TESTS "tests/*.cpp")
 file(GLOB_RECURSE HEADERS "include/*.h")
+
+add_executable(tests ${TESTS} ${HEADERS})
+target_link_libraries(tests PRIVATE Catch2::Catch2WithMain)
+target_include_directories(tests
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
@@ -17,9 +34,9 @@ target_include_directories(${PROJECT_NAME}
 )
 
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
+  target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
 else()
-    target_compile_options(
+  target_compile_options(
         ${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror
     )
 endif()
