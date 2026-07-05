@@ -502,22 +502,20 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
 }
 
 bool eval_word(const word_t& word, interpreter_context_t& context) {
-    for (const operation_t& op : word) {
-        if (!eval_operation(op, context)) {
+    for (const operation_t& op : word)
+        if (!eval_operation(op, context))
             return false;
-        }
-    }
     return true;
 }
 
 bool eval_operation(const operation_t& op, interpreter_context_t& context) {
-    #define OP_CASE(name, _, function) \
-        if (op.tag == operation_tag_t::name) { \
-            return function(op.payload, context); \
-        }
-    OP_CASES(OP_CASE, OP_CASE)
-    #undef OP_CASE
-    return false;
+    switch(op.tag) {
+        #define OP_CASE(name, _, function) \
+            case operation_tag_t::name: return function(op.payload, context);
+        OP_CASES(OP_CASE, OP_CASE)
+        #undef OP_CASE
+        default: return false;
+    }
 }
 
 bool try_parse_operation(const std::string_view& sv, operation_t& op, [[ maybe_unused ]] interpreter_context_t& context) {
