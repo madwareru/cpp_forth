@@ -46,7 +46,7 @@ using word_stack_t = std::vector<word_entry_t>;
 /// A helper type which turns unique strings into unique identifiers
 struct string_interner_t {
     string_interner_t();
-    std::int32_t intern(const std::string_view& sv);
+    std::int32_t intern(std::string_view sv);
     const std::string& get_interned_string(std::int32_t id) const;
 private:
     // We may want to do something smarter later
@@ -87,7 +87,7 @@ bool eval_word(const word_t& word, interpreter_context_t& context);
 bool eval_operation(const operation_t& op, interpreter_context_t& context);
 
 /// A function that tries to parse a single operation
-bool try_parse_operation(const std::string_view& sv, operation_t& op, interpreter_context_t& context);
+bool try_parse_operation(std::string_view sv, operation_t& op, interpreter_context_t& context);
 
 /// A function that tries to parse a word of operations
 word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t& context);
@@ -121,7 +121,7 @@ bool value_t::matches_word(word_t& out) const {
 string_interner_t::string_interner_t()
     : interned_strings(std::vector<std::string>{}) {}
 
-std::int32_t string_interner_t::intern(const std::string_view& sv) {
+std::int32_t string_interner_t::intern(std::string_view sv) {
     for (std::size_t i = 0; i < interned_strings.size(); i++)
         if (interned_strings[i] == sv)
             return (std::int32_t) i;
@@ -131,9 +131,8 @@ std::int32_t string_interner_t::intern(const std::string_view& sv) {
     return res_id;
 }
 
-const std::string STRING_MISSING = "[[[STRING IS MISSING]]]";
-
 const std::string& string_interner_t::get_interned_string(std::int32_t id) const {
+    static const std::string STRING_MISSING = "[[[STRING IS MISSING]]]";
     return id >= 0 && ((std::size_t) id < interned_strings.size())
         ? interned_strings[(std::size_t) id]
         : STRING_MISSING;
@@ -154,7 +153,7 @@ word_stack_guard_t::~word_stack_guard_t() {
         ctx.word_stack.pop_back();
 }
 
-bool is_all_digits(const std::string_view& sv, std::int32_t& payload, [[ maybe_unused ]] interpreter_context_t& context) {
+bool is_all_digits(std::string_view sv, std::int32_t& payload, [[ maybe_unused ]] interpreter_context_t& context) {
     for (const char& c : sv)
         if (c < '0' || c > '9')
             return false;
@@ -167,12 +166,12 @@ bool is_all_digits(const std::string_view& sv, std::int32_t& payload, [[ maybe_u
 
 // Attention: this check is always true,
 // so CallWord should be at the end of an enumeration
-bool is_call_word(const std::string_view& sv, std::int32_t& payload, interpreter_context_t& context) {
+bool is_call_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
     payload = context.interner.intern(sv);
     return true;
 }
 
-bool is_store_word(const std::string_view& sv, std::int32_t& payload, interpreter_context_t& context) {
+bool is_store_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
     if (sv.size() < 2 || sv[0] != ':')
         return false;
 
@@ -180,7 +179,7 @@ bool is_store_word(const std::string_view& sv, std::int32_t& payload, interprete
     return is_call_word(sub_sv, payload, context);
 }
 
-bool is_bind_to_word(const std::string_view& sv, std::int32_t& payload, interpreter_context_t& context) {
+bool is_bind_to_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
     if (sv.size() < 2 || sv[0] != '!')
         return false;
 
@@ -547,7 +546,7 @@ bool eval_operation(const operation_t& op, interpreter_context_t& context) {
     }
 }
 
-bool try_parse_operation(const std::string_view& sv, operation_t& op, interpreter_context_t& context) {
+bool try_parse_operation(std::string_view sv, operation_t& op, interpreter_context_t& context) {
     #define OP_CALL(name, predicate, _) \
         if (std::int32_t payload; predicate(sv, payload, context)) { \
             op = { operation_tag_t::name, payload }; \
@@ -600,7 +599,7 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
         }
 
         success = false;
-        return word_t(0);
+        return {};
     } while(start < s.size());
 
     success = true;
