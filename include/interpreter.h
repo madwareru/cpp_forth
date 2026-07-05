@@ -66,6 +66,16 @@ struct interpreter_context_t {
     interpreter_context_t();
 };
 
+/// Scope guard to encapsulate word stack restoring
+/// after execution of words, which may introduce new ones
+struct word_stack_guard_t {
+    word_stack_guard_t(interpreter_context_t& ctx);
+    ~word_stack_guard_t();
+private:
+    interpreter_context_t& ctx;
+    std::size_t size_to_restore;
+};
+
 /// A function which parses a program, then interpret it, and stores
 /// the result in res in the case of successful execution
 bool eval_program(const std::string& program_text, std::int32_t& res);
@@ -135,6 +145,14 @@ interpreter_context_t::interpreter_context_t()
     word_recorder_nesting(0),
     recording_word(word_t{}),
     interner(string_interner_t{}) {}
+
+word_stack_guard_t::word_stack_guard_t(interpreter_context_t& ctx)
+    : ctx(ctx), size_to_restore(ctx.word_stack.size()) {}
+
+word_stack_guard_t::~word_stack_guard_t() {
+    while(ctx.word_stack.size() > size_to_restore)
+        ctx.word_stack.pop_back();
+}
 
 bool is_all_digits(const std::string_view& sv, std::int32_t& payload, [[ maybe_unused ]] interpreter_context_t& context) {
     for (const char& c : sv)
@@ -405,7 +423,6 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
     }
     context.stack.pop_back();
 
-    auto old_word_stack_size = context.word_stack.size();
     if (cond) {
         if (!eval_word(then_word, context))
             return false;
@@ -414,9 +431,6 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
             return false;
     }
 
-    // We need to restore old word_stack after successful execution
-    while (context.word_stack.size() > old_word_stack_size)
-        context.word_stack.pop_back();
     return true;
 }
 
@@ -430,7 +444,7 @@ bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
 
 bool eval_end_record(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting < 1) {
-        std::cerr << "Error: Tried to decreased word recoder nesting while it is less than one" << std::endl;
+        std::cerr << "Error: Tried to decrease word recoder nesting while it is less than one" << std::endl;
         return false;
     }
 
@@ -498,17 +512,13 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
         return true;
     }
 
-    auto old_word_stack_size = context.word_stack.size();
-    for (std::size_t i = 0; i < old_word_stack_size; i++) {
-        auto idx = old_word_stack_size - 1 - i;
+    for (std::size_t i = 0; i < context.word_stack.size(); i++) {
+        auto idx = context.word_stack.size() - 1 - i;
         const word_entry_t& word_entry = context.word_stack[idx];
         if (word_entry.key == word_id) {
             if (!eval_word(word_entry.word, context))
                 return false;
 
-            // We need to restore old word_stack after successful execution
-            while (context.word_stack.size() > old_word_stack_size)
-                context.word_stack.pop_back();
             return true;
         }
     }
@@ -520,6 +530,7 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
 }
 
 bool eval_word(const word_t& word, interpreter_context_t& context) {
+    word_stack_guard_t guard(context);
     for (const operation_t& op : word)
         if (!eval_operation(op, context))
             return false;
