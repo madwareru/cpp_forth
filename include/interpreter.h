@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <variant>
 #include <string>
 #include <string_view>
 #include <cstdint>
@@ -17,9 +18,6 @@ struct operation_t {
 /// A word composed of primitive operations
 using word_t = std::vector<operation_t>;
 
-/// A tag used for values
-enum class value_tag_t { Number, Word };
-
 /// A tagged union for values that may be stored in a stack
 struct value_t {
     value_t(std::int32_t n);
@@ -32,11 +30,8 @@ struct value_t {
     /// if matches word, clears out, then fills it with ops from value
     /// and returns true, otherwise returns false
     bool matches_word(word_t& out) const;
-
 private:
-    value_tag_t tag;
-    std::int32_t number_v;
-    word_t word_v;
+    std::variant<std::int32_t, word_t> data;
 };
 
 /// A stack of current values
@@ -77,24 +72,22 @@ word_t try_parse_word(const std::string& s, bool& success);
 #include <iostream>
 
 value_t::value_t(std::int32_t n)
-    : tag(value_tag_t::Number), number_v(n), word_v(word_t(0)){}
+    : data(n) {}
 
 value_t::value_t(const word_t& w)
-    : tag(value_tag_t::Word), number_v(0), word_v(w) {}
+    : data(w) {}
 
 bool value_t::matches_number(std::int32_t& out) const {
-    if (tag == value_tag_t::Number) {
-        out = number_v;
+    if (auto* p = std::get_if<std::int32_t>(&data)) {
+        out = *p;
         return true;
     }
     return false;
 }
 
 bool value_t::matches_word(word_t& out) const {
-    if (tag == value_tag_t::Word) {
-        out.clear();
-        for(const operation_t& op : word_v)
-            out.push_back(op);
+    if (auto* p = std::get_if<word_t>(&data)) {
+        out = *p;
         return true;
     }
     return false;
