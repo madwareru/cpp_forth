@@ -524,10 +524,16 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
 }
 
 bool eval_program(const std::string& program_text, std::int32_t& res) {
+    static const std::string prologue =
+        "[ !a a a ] :dup "
+        "[ !a ] :drop "
+        "[ !b !a b a ] :swap "
+        "[ 0 swap - ] :neg ";
+
     interpreter_context_t context;
 
     bool successful_parse = false;
-    word_t word = try_parse_word(program_text, successful_parse, context);
+    word_t word = try_parse_word(prologue + program_text, successful_parse, context);
     if (!successful_parse) {
         std::cerr << "Error: Failed to parse a program" << std::endl;
         return false;

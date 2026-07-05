@@ -6,10 +6,6 @@
 #include <interpreter.h>
 
 const std::string EXAMPLE_PROGRAM =
-    "[ !a a a ] :dup "
-    "[ !a ] :drop "
-    "[ !b !a b a ] :swap "
-    "[ 0 swap - ] :neg "
     "[ !c !b !a b b * 4 a c * * - ] :D "
     "5 neg 4 neg 1 D . "
     "[ !n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact "
