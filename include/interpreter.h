@@ -43,16 +43,27 @@ struct word_entry_t { std::int32_t key; word_t word; };
 /// A stack of words
 using word_stack_t = std::vector<word_entry_t>;
 
+/// A helper type which turns unique strings into unique identifiers
+struct string_interner_t {
+    string_interner_t();
+    std::int32_t intern(const std::string_view& sv);
+    const std::string& get_interned_string(std::int32_t id) const;
+private:
+    // We may want to do something smarter later
+    // Using hash map or may be even trie, but for
+    // now the solution with a flat dynamic array is ok
+    std::vector<std::string> interned_strings;
+};
+
 /// A context of an interpreter storing all the data needed for an interpretation
 struct interpreter_context_t {
     word_stack_t word_stack;
     interpreter_stack_t stack;
     std::size_t word_recorder_nesting;
     word_t recording_word;
-    std::vector<std::string> interned_strings;
+    string_interner_t interner;
 
     interpreter_context_t();
-    const std::string& get_interned_string(std::int32_t id) const;
 };
 
 /// A function which parses a program, then interpret it, and stores
@@ -97,20 +108,33 @@ bool value_t::matches_word(word_t& out) const {
     return false;
 }
 
+string_interner_t::string_interner_t()
+    : interned_strings(std::vector<std::string>{}) {}
+
+std::int32_t string_interner_t::intern(const std::string_view& sv) {
+    for (std::size_t i = 0; i < interned_strings.size(); i++)
+        if (interned_strings[i] == sv)
+            return (std::int32_t) i;
+
+    auto res_id = (std::int32_t) interned_strings.size();
+    interned_strings.emplace_back(sv);
+    return res_id;
+}
+
+const std::string STRING_MISSING = "[[[STRING IS MISSING]]]";
+
+const std::string& string_interner_t::get_interned_string(std::int32_t id) const {
+    return id >= 0 && ((std::size_t) id < interned_strings.size())
+        ? interned_strings[(std::size_t) id]
+        : STRING_MISSING;
+}
+
 interpreter_context_t::interpreter_context_t()
     : word_stack(word_stack_t{}),
     stack(interpreter_stack_t{}),
     word_recorder_nesting(0),
     recording_word(word_t{}),
-    interned_strings(std::vector<std::string>{}){}
-
-const std::string STRING_MISSING = "[[[STRING IS MISSING]]]";
-
-const std::string& interpreter_context_t::get_interned_string(std::int32_t id) const {
-    return id >= 0 && ((std::size_t) id < interned_strings.size())
-        ? interned_strings[(std::size_t) id]
-        : STRING_MISSING;
-}
+    interner(string_interner_t{}) {}
 
 bool is_all_digits(const std::string_view& sv, std::int32_t& payload, [[ maybe_unused ]] interpreter_context_t& context) {
     for (const char& c : sv)
@@ -126,15 +150,7 @@ bool is_all_digits(const std::string_view& sv, std::int32_t& payload, [[ maybe_u
 // Attention: this check is always true,
 // so CallWord should be at the end of an enumeration
 bool is_call_word(const std::string_view& sv, std::int32_t& payload, interpreter_context_t& context) {
-    for (std::size_t i = 0; i < context.interned_strings.size(); i++) {
-        if (context.interned_strings[i] == sv) {
-            payload = (std::int32_t) i;
-            return true;
-        }
-    }
-
-    payload = (std::int32_t) context.interned_strings.size();
-    context.interned_strings.push_back(std::string(sv));
+    payload = context.interner.intern(sv);
     return true;
 }
 
@@ -497,7 +513,9 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
         }
     }
 
-    std::cerr << "Error: a word '" << context.get_interned_string(word_id) << "' not found in a word stack" << std::endl;
+    std::cerr
+        << "Error: a word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack"
+        << std::endl;
     return false;
 }
 
