@@ -49,6 +49,10 @@ struct interpreter_context_t {
     interpreter_stack_t stack;
     std::size_t word_recorder_nesting;
     word_t recording_word;
+    std::vector<std::string> interned_strings;
+
+    interpreter_context_t();
+    const std::string& get_interned_string(std::int32_t id) const;
 };
 
 /// A function which parses a program, then interpret it, and stores
@@ -93,16 +97,22 @@ bool value_t::matches_word(word_t& out) const {
     return false;
 }
 
-static std::vector<std::string> interned_strings;
+interpreter_context_t::interpreter_context_t()
+    : word_stack(word_stack_t{}),
+    stack(interpreter_stack_t{}),
+    word_recorder_nesting(0),
+    recording_word(word_t{}),
+    interned_strings(std::vector<std::string>{}){}
+
 const std::string STRING_MISSING = "[[[STRING IS MISSING]]]";
 
-const std::string& get_interned_string(std::int32_t id) {
+const std::string& interpreter_context_t::get_interned_string(std::int32_t id) const {
     return id >= 0 && ((std::size_t) id < interned_strings.size())
         ? interned_strings[(std::size_t) id]
         : STRING_MISSING;
 }
 
-bool is_all_digits(const std::string_view& sv, std::int32_t& payload) {
+bool is_all_digits(const std::string_view& sv, std::int32_t& payload, [[ maybe_unused ]] interpreter_context_t& context) {
     for (const char& c : sv)
         if (c < '0' || c > '9')
             return false;
@@ -115,33 +125,33 @@ bool is_all_digits(const std::string_view& sv, std::int32_t& payload) {
 
 // Attention: this check is always true,
 // so CallWord should be at the end of an enumeration
-bool is_call_word(const std::string_view& sv, std::int32_t& payload) {
-    for (std::size_t i = 0; i < interned_strings.size(); i++) {
-        if (interned_strings[i] == sv) {
+bool is_call_word(const std::string_view& sv, std::int32_t& payload, interpreter_context_t& context) {
+    for (std::size_t i = 0; i < context.interned_strings.size(); i++) {
+        if (context.interned_strings[i] == sv) {
             payload = (std::int32_t) i;
             return true;
         }
     }
 
-    payload = (std::int32_t) interned_strings.size();
-    interned_strings.push_back(std::string(sv));
+    payload = (std::int32_t) context.interned_strings.size();
+    context.interned_strings.push_back(std::string(sv));
     return true;
 }
 
-bool is_store_word(const std::string_view& sv, std::int32_t& payload) {
+bool is_store_word(const std::string_view& sv, std::int32_t& payload, interpreter_context_t& context) {
     if (sv.size() < 2 || sv[0] != ':')
         return false;
 
     auto sub_sv = sv.substr(1, sv.size() - 1);
-    return is_call_word(sub_sv, payload);
+    return is_call_word(sub_sv, payload, context);
 }
 
-bool is_bind_to_word(const std::string_view& sv, std::int32_t& payload) {
+bool is_bind_to_word(const std::string_view& sv, std::int32_t& payload, interpreter_context_t& context) {
     if (sv.size() < 2 || sv[0] != '!')
         return false;
 
     auto sub_sv = sv.substr(1, sv.size() - 1);
-    return is_call_word(sub_sv, payload);
+    return is_call_word(sub_sv, payload, context);
 }
 
 #define OP_CASES(X_TOKEN, X_CALL) \
@@ -487,7 +497,7 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
         }
     }
 
-    std::cerr << "Error: a word '" << get_interned_string(word_id) << "' not found in a word stack" << std::endl;
+    std::cerr << "Error: a word '" << context.get_interned_string(word_id) << "' not found in a word stack" << std::endl;
     return false;
 }
 
@@ -510,9 +520,9 @@ bool eval_operation(const operation_t& op, interpreter_context_t& context) {
     return false;
 }
 
-bool try_parse_operation(const std::string_view& sv, operation_t& op) {
+bool try_parse_operation(const std::string_view& sv, operation_t& op, [[ maybe_unused ]] interpreter_context_t& context) {
     #define OP_CALL(name, predicate, _) \
-        if (std::int32_t payload; predicate(sv, payload)) { \
+        if (std::int32_t payload; predicate(sv, payload, context)) { \
             op = { operation_tag_t::name, payload }; \
             return true; \
         }
@@ -534,7 +544,7 @@ bool is_whitespace(char ch) {
         ch == '\n';
 }
 
-word_t try_parse_word(const std::string& s, bool& success) {
+word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t& context) {
     word_t word;
     std::size_t start = 0;
     do {
@@ -560,7 +570,7 @@ word_t try_parse_word(const std::string& s, bool& success) {
         // Step 2.a: If no pos found, just process a tail of a string and quit
         if (pos == std::string::npos) {
             std::string_view sv = std::string_view(s).substr(start, s.size() - start);
-            if (operation_t op; try_parse_operation(sv, op)) {
+            if (operation_t op; try_parse_operation(sv, op, context)) {
                 word.push_back(op);
                 success = true;
                 return word;
@@ -572,7 +582,7 @@ word_t try_parse_word(const std::string& s, bool& success) {
 
         // Step 2.b: If pos found, get a view for substring between start and pos, process it
         std::string_view sv = std::string_view(s).substr(start, pos - start);
-        if (operation_t op; try_parse_operation(sv, op)) {
+        if (operation_t op; try_parse_operation(sv, op, context)) {
             word.push_back(op);
         } else {
             success = false;
@@ -588,19 +598,14 @@ word_t try_parse_word(const std::string& s, bool& success) {
 }
 
 bool eval_program(const std::string& program_text, std::int32_t& res) {
+    interpreter_context_t context;
+
     bool successful_parse = false;
-    word_t word = try_parse_word(program_text, successful_parse);
+    word_t word = try_parse_word(program_text, successful_parse, context);
     if (!successful_parse) {
         std::cerr << "Error: Failed to parse a program" << std::endl;
         return false;
     }
-
-    interpreter_context_t context = {
-        word_stack_t{},
-        interpreter_stack_t{},
-        0,
-        word_t{}
-    };
 
     if (!eval_word(word, context)) {
         std::cerr << "Error: Program evaluation failed" << std::endl;
