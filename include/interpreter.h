@@ -208,6 +208,20 @@ enum class operation_tag_t {
     #undef OP_CASE
 };
 
+bool try_pop_number(interpreter_context_t& ctx, std::int32_t& out) {
+    if (ctx.stack.empty()) return false;
+    if (!ctx.stack.back().matches_number(out)) return false;
+    ctx.stack.pop_back();
+    return true;
+}
+
+bool try_pop_word(interpreter_context_t& ctx, word_t& out) {
+    if (ctx.stack.empty()) return false;
+    if (!ctx.stack.back().matches_word(out)) return false;
+    ctx.stack.pop_back();
+    return true;
+}
+
 bool eval_push(std::int32_t num, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::Push, num);
@@ -224,24 +238,12 @@ bool eval_add(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.size() < 2) {
-        std::cerr << "Error: trying to get a sum of two values, while stack size is less than 2" << std::endl;
-        return false;
-    }
-
     std::int32_t lhs, rhs;
 
-    if (!context.stack.back().matches_number(rhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+    if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
+        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
-
-    if (!context.stack.back().matches_number(lhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
-        return false;
-    }
-    context.stack.pop_back();
 
     context.stack.push_back(lhs + rhs);
     return true;
@@ -253,24 +255,12 @@ bool eval_sub(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.size() < 2) {
-        std::cerr << "Error: trying to get a sub of two values, while stack size is less than 2" << std::endl;
-        return false;
-    }
-
     std::int32_t lhs, rhs;
 
-    if (!context.stack.back().matches_number(rhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+    if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
+        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
-
-    if (!context.stack.back().matches_number(lhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
-        return false;
-    }
-    context.stack.pop_back();
 
     context.stack.push_back(lhs - rhs);
     return true;
@@ -282,27 +272,15 @@ bool eval_mul(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.size() < 2) {
-        std::cerr << "Error: trying to get a mul of two values, while stack size is less than 2" << std::endl;
-        return false;
-    }
-
     std::int32_t lhs, rhs;
 
-    if (!context.stack.back().matches_number(rhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+    if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
+        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
-
-    if (!context.stack.back().matches_number(lhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
-        return false;
-    }
-    context.stack.pop_back();
 
     context.stack.push_back(lhs * rhs);
-        return true;
+    return true;
 }
 
 bool eval_div(std::int32_t payload, interpreter_context_t& context) {
@@ -311,31 +289,20 @@ bool eval_div(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.size() < 2) {
-        std::cerr << "Error: trying to get a div of two values, while stack size is less than 2" << std::endl;
-        return false;
-    }
-
     std::int32_t lhs, rhs;
 
-    if (!context.stack.back().matches_number(rhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+    if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
+        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
+
     if (rhs == 0) {
         std::cerr << "Error: Division by zero" << std::endl;
         return false;
     }
 
-    if (!context.stack.back().matches_number(lhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
-        return false;
-    }
-    context.stack.pop_back();
-
     context.stack.push_back(lhs / rhs);
-        return true;
+    return true;
 }
 
 bool eval_less_than(std::int32_t payload, interpreter_context_t& context) {
@@ -344,27 +311,15 @@ bool eval_less_than(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.size() < 2) {
-        std::cerr << "Error: trying to compare two values, while stack size is less than 2" << std::endl;
-        return false;
-    }
-
     std::int32_t lhs, rhs;
 
-    if (!context.stack.back().matches_number(rhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+    if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
+        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
-
-    if (!context.stack.back().matches_number(lhs)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
-        return false;
-    }
-    context.stack.pop_back();
 
     context.stack.push_back(lhs < rhs ? 1 : 0);
-        return true;
+    return true;
 }
 
 bool eval_print(std::int32_t payload, interpreter_context_t& context) {
@@ -373,17 +328,11 @@ bool eval_print(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.empty()) {
-        std::cerr << "Error: trying to pop a value from an empty stack" << std::endl;
-        return false;
-    }
-
     std::int32_t x;
-    if (!context.stack.back().matches_number(x)) {
+    if (!try_pop_number(context, x)) {
         std::cerr << "Error: Expected a number on top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
 
     std::cout << x << std::endl;
 
@@ -396,41 +345,21 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.size() < 3) {
-        std::cerr << "Error: Expected a stack size to be 3 or more" << std::endl;
+    word_t else_word, then_word;
+    if (!(try_pop_word(context, else_word) && try_pop_word(context, then_word))) {
+        std::cerr << "Error: Expected a word for else and a word for then on top of a stack" << std::endl;
         return false;
     }
-
-    word_t else_word;
-    if (!context.stack.back().matches_word(else_word)) {
-        std::cerr << "Error: Expected a word on top of a stack" << std::endl;
-        return false;
-    }
-    context.stack.pop_back();
-
-    word_t then_word;
-    if (!context.stack.back().matches_word(then_word)) {
-        std::cerr << "Error: Expected a word on top of a stack" << std::endl;
-        return false;
-    }
-    context.stack.pop_back();
 
     std::int32_t cond;
-    if (!context.stack.back().matches_number(cond)) {
+    if (!try_pop_number(context, cond)) {
         std::cerr << "Error: Expected a number on top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
 
-    if (cond) {
-        if (!eval_word(then_word, context))
-            return false;
-    } else {
-        if (!eval_word(else_word, context))
-            return false;
-    }
-
-    return true;
+    return cond
+        ? eval_word(then_word, context)
+        : eval_word(else_word, context);
 }
 
 bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
@@ -464,17 +393,11 @@ bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.empty()) {
-        std::cerr << "Error: trying to store word while stack is empty" << std::endl;
-        return false;
-    }
-
     word_t word;
-    if (!context.stack.back().matches_word(word)) {
+    if (!try_pop_word(context, word)) {
         std::cerr << "Error: Expected a word on a top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
 
     context.word_stack.emplace_back(word_id, word);
     return true;
@@ -486,17 +409,11 @@ bool eval_bind_to_word(std::int32_t word_id, interpreter_context_t& context) {
         return true;
     }
 
-    if (context.stack.empty()) {
-        std::cerr << "Error: trying to bind word while stack is empty" << std::endl;
-        return false;
-    }
-
     std::int32_t num;
-    if (!context.stack.back().matches_number(num)) {
+    if (!try_pop_number(context, num)) {
         std::cerr << "Error: Expected a number on a top of a stack" << std::endl;
         return false;
     }
-    context.stack.pop_back();
 
     word_t word;
     word.emplace_back(operation_tag_t::Push, num);
