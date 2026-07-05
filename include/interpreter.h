@@ -518,7 +518,7 @@ bool eval_operation(const operation_t& op, interpreter_context_t& context) {
     }
 }
 
-bool try_parse_operation(const std::string_view& sv, operation_t& op, [[ maybe_unused ]] interpreter_context_t& context) {
+bool try_parse_operation(const std::string_view& sv, operation_t& op, interpreter_context_t& context) {
     #define OP_CALL(name, predicate, _) \
         if (std::int32_t payload; predicate(sv, payload, context)) { \
             op = { operation_tag_t::name, payload }; \
