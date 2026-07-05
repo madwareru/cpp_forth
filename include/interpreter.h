@@ -559,13 +559,7 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
         }
 
         // Step 2: Searching for next first pos of a whitespace character
-        std::size_t pos = std::min(
-            std::min(
-                s.find(' ', start),
-                s.find('\t', start)
-            ),
-            s.find('\n', start)
-        );
+        std::size_t pos = s.find_first_of(" \t\n", start);
 
         // Step 2.a: If no pos found, just process a tail of a string and quit
         if (pos == std::string::npos) {
