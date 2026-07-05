@@ -575,43 +575,32 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
     word_t word;
     std::size_t start = 0;
     do {
-        // Step 1: Searching for first non-whitespace character
         while(start < s.size() && is_whitespace(s[start]))
             ++start;
 
-        // Step 1.a: If we reached the end, quit immediately
         if (start == s.size()) {
             success = true;
             return word;
         }
 
-        // Step 2: Searching for next first pos of a whitespace character
         std::size_t pos = s.find_first_of(" \t\n", start);
 
-        // Step 2.a: If no pos found, just process a tail of a string and quit
+        std::string_view sv;
         if (pos == std::string::npos) {
-            std::string_view sv = std::string_view(s).substr(start, s.size() - start);
-            if (operation_t op; try_parse_operation(sv, op, context)) {
-                word.push_back(op);
-                success = true;
-                return word;
-            } else {
-                success = false;
-                return word_t(0);
-            }
+            sv = std::string_view(s).substr(start, s.size() - start);
+            start = s.size();
+        } else {
+            sv = std::string_view(s).substr(start, pos - start);
+            start = pos + 1;
         }
 
-        // Step 2.b: If pos found, get a view for substring between start and pos, process it
-        std::string_view sv = std::string_view(s).substr(start, pos - start);
         if (operation_t op; try_parse_operation(sv, op, context)) {
             word.push_back(op);
-        } else {
-            success = false;
-            return word_t(0);
+            continue;
         }
 
-        // Step 3: Make a start pointing to pos + 1 and go to the next iteration
-        start = pos + 1;
+        success = false;
+        return word_t(0);
     } while(start < s.size());
 
     success = true;
