@@ -87,10 +87,10 @@ bool eval_word(const word_t& word, interpreter_context_t& context);
 bool eval_operation(const operation_t& op, interpreter_context_t& context);
 
 /// A function that tries to parse a single operation
-bool try_parse_operation(const std::string_view& sv, operation_t& op);
+bool try_parse_operation(const std::string_view& sv, operation_t& op, interpreter_context_t& context);
 
 /// A function that tries to parse a word of operations
-word_t try_parse_word(const std::string& s, bool& success);
+word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t& context);
 
 #ifdef interpreter_impl
 
