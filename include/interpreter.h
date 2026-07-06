@@ -217,7 +217,6 @@ bool is_push_word(std::string_view sv, std::int32_t& payload, interpreter_contex
     X_TOKEN(LessThan, "<", eval_less_than) \
     X_TOKEN(Print, ".", eval_print) \
     X_TOKEN(IfElse, "ifelse", eval_if_else) \
-    X_TOKEN(Loop, "loop", eval_loop ) \
     X_TOKEN(StartRecord, "[", eval_start_record) \
     X_TOKEN(EndRecord, "]", eval_end_record) \
     X_CALL(StoreWord, is_store_word, eval_store_word) \
@@ -382,31 +381,6 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
     return cond
         ? eval_word(context, then_word_range)
         : eval_word(context, else_word_range);
-}
-
-bool eval_loop(std::int32_t payload, interpreter_context_t& context) {
-    if (context.word_recorder_nesting > 0) {
-        context.recording_word.emplace_back(operation_tag_t::Loop, payload);
-        return true;
-    }
-
-    word_range_t body_word_range{0, 0};
-    if (!try_pop_word(context, body_word_range)) {
-        LOG_ERR("Error: Expected a word for a loop body on top of a stack");
-        return false;
-    }
-
-    std::int32_t count;
-    if (!try_pop_number(context, count)) {
-        LOG_ERR("Error: Expected a number for a count on top of a stack");
-        return false;
-    }
-
-    for(std::int32_t i = 0; i < count; ++i)
-        if (!eval_word(context, body_word_range))
-            return false;
-
-    return true;
 }
 
 bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
@@ -604,6 +578,7 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         "[ 0 swap - ] :neg "
         "[ 1 + ] :inc "
         "[ 1 - ] :dec "
+        "[ :body :count 0 count < [ body count dec &body loop ] [ :it it ] ifelse ] :loop "
     ;
 
     interpreter_context_t context;
