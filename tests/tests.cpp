@@ -61,6 +61,20 @@ bool eval_case_equals(const std::string& case_text, std::int32_t value) {
     return eval_case(case_text).match_success(res) && res == value;
 }
 
+TEST_CASE("Test if string interner intern strings right", "[interner]") {
+    string_interner_t interner;
+    auto id_1 = interner.intern("foo");
+    auto id_2 = interner.intern("bar");
+    auto id_3 = interner.intern("buzz");
+    REQUIRE( id_1 == 0 );
+    REQUIRE( id_2 == 1 );
+    REQUIRE( id_3 == 2 );
+
+    REQUIRE(interner.intern("foo") == id_1);
+    REQUIRE(interner.intern("buzz") == id_3);
+    REQUIRE(interner.intern("bar") == id_2);
+}
+
 TEST_CASE("Incorrect programs do not work", "[eval]") {
     CHECK( eval_case_fails("["s) );
     CHECK( eval_case_fails("+"s) );

@@ -19,10 +19,15 @@ struct operation_t {
 /// A word composed of primitive operations
 using word_t = std::vector<operation_t>;
 
+struct word_range_t {
+    std::size_t start;
+    std::size_t end;
+};
+
 /// A tagged union for values that may be stored in a stack
 struct value_t {
     value_t(std::int32_t n);
-    value_t(const word_t& w);
+    value_t(const word_range_t& w);
 
     /// if matches number, places a number value in out
     /// and returns true, otherwise returns false
@@ -30,16 +35,16 @@ struct value_t {
 
     /// if matches word, clears out, then fills it with ops from value
     /// and returns true, otherwise returns false
-    bool matches_word(word_t& out) const;
+    bool matches_word_range(word_range_t& out) const;
 private:
-    std::variant<std::int32_t, word_t> data;
+    std::variant<std::int32_t, word_range_t> data;
 };
 
 /// A stack of current values
 using interpreter_stack_t = std::vector<value_t>;
 
 /// An entry in a stack of words
-struct word_entry_t { std::int32_t key; word_t word; };
+struct word_entry_t { std::int32_t key; word_range_t range; };
 
 /// A stack of words
 using word_stack_t = std::vector<word_entry_t>;
@@ -61,6 +66,7 @@ struct interpreter_context_t {
     word_stack_t word_stack;
     interpreter_stack_t stack;
     std::size_t word_recorder_nesting;
+    word_t program_word;
     word_t recording_word;
     string_interner_t interner;
 
@@ -74,7 +80,8 @@ struct word_stack_guard_t {
     ~word_stack_guard_t();
 private:
     interpreter_context_t& ctx;
-    std::size_t size_to_restore;
+    std::size_t stack_size_to_restore;
+    std::size_t word_size_to_restore;
 };
 
 /// A function which parses a program, then interpret it, and stores
@@ -82,7 +89,7 @@ private:
 bool eval_program(const std::string& program_text, std::int32_t& res);
 
 /// A function which interpret a sequence of operations from the word
-bool eval_word(const word_t& word, interpreter_context_t& context);
+bool eval_word(interpreter_context_t& context, word_range_t range);
 
 /// A function which interpret an operation from the word
 bool eval_operation(const operation_t& op, interpreter_context_t& context);
@@ -103,10 +110,11 @@ void try_parse_word(const std::string& s, word_t& out_word, bool& success, inter
             << message << std::endl; \
     } while(0)
 
+
 value_t::value_t(std::int32_t n)
     : data(n) {}
 
-value_t::value_t(const word_t& w)
+value_t::value_t(const word_range_t& w)
     : data(w) {}
 
 bool value_t::matches_number(std::int32_t& out) const {
@@ -117,12 +125,9 @@ bool value_t::matches_number(std::int32_t& out) const {
     return false;
 }
 
-bool value_t::matches_word(word_t& out) const {
-    if (auto* p = std::get_if<word_t>(&data)) {
-        out.clear();
-        out.reserve(p->size());
-        for(auto op : *p)
-            out.push_back(op);
+bool value_t::matches_word_range(word_range_t& out) const {
+    if (auto* p = std::get_if<word_range_t>(&data)) {
+        out = *p;
         return true;
     }
     return false;
@@ -152,15 +157,20 @@ interpreter_context_t::interpreter_context_t()
     : word_stack(word_stack_t{}),
     stack(interpreter_stack_t{}),
     word_recorder_nesting(0),
+    program_word({}),
     recording_word(word_t{}),
     interner(string_interner_t{}) {}
 
 word_stack_guard_t::word_stack_guard_t(interpreter_context_t& ctx)
-    : ctx(ctx), size_to_restore(ctx.word_stack.size()) {}
+    : ctx(ctx),
+    stack_size_to_restore(ctx.word_stack.size()),
+    word_size_to_restore(ctx.program_word.size()) {}
 
 word_stack_guard_t::~word_stack_guard_t() {
-    while(ctx.word_stack.size() > size_to_restore)
+    while(ctx.word_stack.size() > stack_size_to_restore)
         ctx.word_stack.pop_back();
+    while(ctx.program_word.size() > word_size_to_restore)
+        ctx.program_word.pop_back();
 }
 
 bool is_all_digits(std::string_view sv, std::int32_t& payload, [[ maybe_unused ]] interpreter_context_t& context) {
@@ -216,9 +226,9 @@ bool try_pop_number(interpreter_context_t& ctx, std::int32_t& out) {
     return true;
 }
 
-bool try_pop_word(interpreter_context_t& ctx, word_t& out) {
+bool try_pop_word(interpreter_context_t& ctx, word_range_t& out) {
     if (ctx.stack.empty()) return false;
-    if (!ctx.stack.back().matches_word(out)) return false;
+    if (!ctx.stack.back().matches_word_range(out)) return false;
     ctx.stack.pop_back();
     return true;
 }
@@ -346,7 +356,7 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    word_t else_word, then_word;
+    word_range_t else_word{0, 0}, then_word{0, 0};
     if (!(try_pop_word(context, else_word) && try_pop_word(context, then_word))) {
         LOG_ERR("Error: Expected a word for else and a word for then on top of a stack");
         return false;
@@ -359,8 +369,8 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
     }
 
     return cond
-        ? eval_word(then_word, context)
-        : eval_word(else_word, context);
+        ? eval_word(context, then_word)
+        : eval_word(context, else_word);
 }
 
 bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
@@ -379,7 +389,17 @@ bool eval_end_record(std::int32_t payload, interpreter_context_t& context) {
 
     --context.word_recorder_nesting;
     if (context.word_recorder_nesting == 0) {
-        context.stack.push_back(context.recording_word);
+        // In the case of empty recording_word end will be less than start
+        // which is completely fine, because such a word will never
+        // be processed, and we needed exactly this kind of behaviour
+        word_range_t new_word_range(
+            context.program_word.size(),
+            context.program_word.size() + context.recording_word.size() - 1
+        );
+
+        context.stack.push_back(new_word_range);
+        for(auto op : context.recording_word)
+            context.program_word.push_back(op);
         context.recording_word.clear();
         return true;
     }
@@ -395,13 +415,13 @@ bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
     }
 
     if (std::int32_t num; try_pop_number(context, num)) {
-        word_t word;
-        word.emplace_back(operation_tag_t::Push, num);
+        word_range_t word{ context.program_word.size(), context.program_word.size() };
+        context.program_word.emplace_back(operation_tag_t::Push, num);
         context.word_stack.emplace_back(word_id, word);
         return true;
     }
 
-    if (word_t word; try_pop_word(context, word)) {
+    if (word_range_t word{0, 0}; try_pop_word(context, word)) {
         context.word_stack.emplace_back(word_id, word);
         return true;
     }
@@ -420,7 +440,7 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
         auto idx = context.word_stack.size() - 1 - i;
         const word_entry_t& word_entry = context.word_stack[idx];
         if (word_entry.key == word_id) {
-            if (!eval_word(word_entry.word, context))
+            if (!eval_word(context, word_entry.range))
                 return false;
 
             return true;
@@ -431,11 +451,14 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
     return false;
 }
 
-bool eval_word(const word_t& word, interpreter_context_t& context) {
+bool eval_word(interpreter_context_t& context, word_range_t range) {
     word_stack_guard_t guard(context);
-    for (const operation_t& op : word)
+
+    for (std::size_t i = range.start; i <= range.end; ++i) {
+        auto op = context.program_word[i];
         if (!eval_operation(op, context))
             return false;
+    }
     return true;
 }
 
@@ -535,7 +558,14 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         return false;
     }
 
-    if (!eval_word(word, context)) {
+    if (word.empty()) {
+        LOG_ERR("Error: Program is empty");
+        return false;
+    }
+
+    context.program_word = word;
+
+    if (!eval_word(context, {0, context.program_word.size()-1})) {
         LOG_ERR("Error: Program evaluation failed");
         return false;
     }
