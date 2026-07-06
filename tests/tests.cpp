@@ -98,4 +98,5 @@ TEST_CASE("Correct programs are working as expected", "[eval]"){
     CHECK( eval_case_equals("2 dup +"s, 4) );
     CHECK( eval_case_equals("[ :n n [ n dec odd ] [ 1 ] ifelse ] :even [ :n n [ n dec even ] [ 0 ] ifelse ] :odd 42 even"s, 1));
     CHECK( eval_case_equals("[ :n n 2 < [ 1 ] [ n dup dec fact * ] ifelse ] :fact 5 fact"s, 120));
+    CHECK( eval_case_equals("[ :n 0 n [ dup inc + ] loop inc ] :pow2 5 pow2", 32));
 }

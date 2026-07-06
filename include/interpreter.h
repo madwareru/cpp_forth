@@ -19,6 +19,8 @@ struct operation_t {
 /// A word composed of primitive operations
 using word_t = std::vector<operation_t>;
 
+/// A range used to store info about words which are
+/// dynamically recorded during the work of a program
 struct word_range_t {
     std::size_t start;
     std::size_t end;
@@ -110,7 +112,6 @@ void try_parse_word(const std::string& s, word_t& out_word, bool& success, inter
             << message << std::endl; \
     } while(0)
 
-
 value_t::value_t(std::int32_t n)
     : data(n) {}
 
@@ -199,6 +200,14 @@ bool is_store_word(std::string_view sv, std::int32_t& payload, interpreter_conte
     return is_call_word(sub_sv, payload, context);
 }
 
+bool is_push_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
+    if (sv.size() < 2 || sv[0] != '&')
+        return false;
+
+    auto sub_sv = sv.substr(1, sv.size() - 1);
+    return is_call_word(sub_sv, payload, context);
+}
+
 #define OP_CASES(X_TOKEN, X_CALL) \
     X_CALL(Push, is_all_digits, eval_push) \
     X_TOKEN(Add, "+", eval_add) \
@@ -208,9 +217,11 @@ bool is_store_word(std::string_view sv, std::int32_t& payload, interpreter_conte
     X_TOKEN(LessThan, "<", eval_less_than) \
     X_TOKEN(Print, ".", eval_print) \
     X_TOKEN(IfElse, "ifelse", eval_if_else) \
+    X_TOKEN(Loop, "loop", eval_loop ) \
     X_TOKEN(StartRecord, "[", eval_start_record) \
     X_TOKEN(EndRecord, "]", eval_end_record) \
     X_CALL(StoreWord, is_store_word, eval_store_word) \
+    X_CALL(PushWord, is_push_word, eval_push_word ) \
     X_CALL(CallWord, is_call_word, eval_call_word)
 
 enum class operation_tag_t {
@@ -356,8 +367,8 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
         return true;
     }
 
-    word_range_t else_word{0, 0}, then_word{0, 0};
-    if (!(try_pop_word(context, else_word) && try_pop_word(context, then_word))) {
+    word_range_t else_word_range{0, 0}, then_word_range{0, 0};
+    if (!(try_pop_word(context, else_word_range) && try_pop_word(context, then_word_range))) {
         LOG_ERR("Error: Expected a word for else and a word for then on top of a stack");
         return false;
     }
@@ -369,8 +380,33 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
     }
 
     return cond
-        ? eval_word(context, then_word)
-        : eval_word(context, else_word);
+        ? eval_word(context, then_word_range)
+        : eval_word(context, else_word_range);
+}
+
+bool eval_loop(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Loop, payload);
+        return true;
+    }
+
+    word_range_t body_word_range{0, 0};
+    if (!try_pop_word(context, body_word_range)) {
+        LOG_ERR("Error: Expected a word for a loop body on top of a stack");
+        return false;
+    }
+
+    std::int32_t count;
+    if (!try_pop_number(context, count)) {
+        LOG_ERR("Error: Expected a number for a count on top of a stack");
+        return false;
+    }
+
+    for(std::int32_t i = 0; i < count; ++i)
+        if (!eval_word(context, body_word_range))
+            return false;
+
+    return true;
 }
 
 bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
@@ -421,12 +457,32 @@ bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
         return true;
     }
 
-    if (word_range_t word{0, 0}; try_pop_word(context, word)) {
-        context.word_stack.emplace_back(word_id, word);
+    if (word_range_t word_range{0, 0}; try_pop_word(context, word_range)) {
+        context.word_stack.emplace_back(word_id, word_range);
         return true;
     }
 
     LOG_ERR("Error: Expected a number or a word on a top of a stack");
+    return false;
+}
+
+bool eval_push_word(std::int32_t word_id, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::PushWord, word_id);
+        return true;
+    }
+
+    for (std::size_t i = 0; i < context.word_stack.size(); i++) {
+        auto idx = context.word_stack.size() - 1 - i;
+        const word_entry_t& word_entry = context.word_stack[idx];
+        if (word_entry.key == word_id) {
+            word_range_t word_range = word_entry.range;
+            context.stack.push_back(word_range);
+            return true;
+        }
+    }
+
+    LOG_ERR("Error: a word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
     return false;
 }
 
@@ -544,9 +600,11 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         "[ :a a a ] :dup "
         "[ :a ] :drop "
         "[ :b :a b a ] :swap "
+        "[ :b :a a b a ] :over "
         "[ 0 swap - ] :neg "
         "[ 1 + ] :inc "
-        "[ 1 - ] :dec ";
+        "[ 1 - ] :dec "
+    ;
 
     interpreter_context_t context;
 
