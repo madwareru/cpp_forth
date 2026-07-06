@@ -72,9 +72,12 @@ TEST_CASE("Incorrect programs do not work unexpectedly well", "[eval]") {
     CHECK( eval_case_fails("]"s) );
     CHECK( eval_case_fails("2 2 + +"s) );
     CHECK( eval_case_fails("2 0 /"s) );
+    CHECK( eval_case_fails("[ ]"s) );
 }
 
 TEST_CASE("Correct programs are working as expected", "[eval]"){
+    CHECK( eval_case_equals("67"s, 67) );
+    CHECK( eval_case_equals("[ ] 42"s, 42) );
     CHECK( eval_case_equals("1 1 +"s, 2) );
     CHECK( eval_case_equals("2 dup +"s, 4) );
     CHECK( eval_case_equals("[ !n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact 5 fact"s, 120));
