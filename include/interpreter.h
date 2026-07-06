@@ -185,14 +185,6 @@ bool is_store_word(std::string_view sv, std::int32_t& payload, interpreter_conte
     return is_call_word(sub_sv, payload, context);
 }
 
-bool is_bind_to_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
-    if (sv.size() < 2 || sv[0] != '!')
-        return false;
-
-    auto sub_sv = sv.substr(1, sv.size() - 1);
-    return is_call_word(sub_sv, payload, context);
-}
-
 #define OP_CASES(X_TOKEN, X_CALL) \
     X_CALL(Push, is_all_digits, eval_push) \
     X_TOKEN(Add, "+", eval_add) \
@@ -205,7 +197,6 @@ bool is_bind_to_word(std::string_view sv, std::int32_t& payload, interpreter_con
     X_TOKEN(StartRecord, "[", eval_start_record) \
     X_TOKEN(EndRecord, "]", eval_end_record) \
     X_CALL(StoreWord, is_store_word, eval_store_word) \
-    X_CALL(BindToWord, is_bind_to_word, eval_bind_to_word) \
     X_CALL(CallWord, is_call_word, eval_call_word)
 
 enum class operation_tag_t {
@@ -399,33 +390,20 @@ bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
         return true;
     }
 
-    word_t word;
-    if (!try_pop_word(context, word)) {
-        LOG_ERR("Error: Expected a word on a top of a stack");
-        return false;
-    }
-
-    context.word_stack.emplace_back(word_id, word);
-    return true;
-}
-
-bool eval_bind_to_word(std::int32_t word_id, interpreter_context_t& context) {
-    if (context.word_recorder_nesting > 0) {
-        context.recording_word.emplace_back(operation_tag_t::BindToWord, word_id);
+    if (std::int32_t num; try_pop_number(context, num)) {
+        word_t word;
+        word.emplace_back(operation_tag_t::Push, num);
+        context.word_stack.emplace_back(word_id, word);
         return true;
     }
 
-    std::int32_t num;
-    if (!try_pop_number(context, num)) {
-        LOG_ERR("Error: Expected a number on a top of a stack");
-        return false;
+    if (word_t word; try_pop_word(context, word)) {
+        context.word_stack.emplace_back(word_id, word);
+        return true;
     }
 
-    word_t word;
-    word.emplace_back(operation_tag_t::Push, num);
-    context.word_stack.emplace_back(word_id, word);
-
-    return true;
+    LOG_ERR("Error: Expected a number or a word on a top of a stack");
+    return false;
 }
 
 bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
@@ -529,9 +507,9 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
 
 bool eval_program(const std::string& program_text, std::int32_t& res) {
     static const std::string prologue =
-        "[ !a a a ] :dup "
-        "[ !a ] :drop "
-        "[ !b !a b a ] :swap "
+        "[ :a a a ] :dup "
+        "[ :a ] :drop "
+        "[ :b :a b a ] :swap "
         "[ 0 swap - ] :neg "
         "[ 1 + ] :inc "
         "[ 1 - ] :dec ";

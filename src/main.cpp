@@ -6,12 +6,12 @@
 #include <interpreter.h>
 
 const std::string EXAMPLE_PROGRAM =
-    "[ !c !b !a b b * 4 a c * * - ] :D "
+    "[ :c :b :a b b * 4 a c * * - ] :D "
     "5 neg 4 neg 1 D . "
-    "[ !n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact "
+    "[ :n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact "
     "5 fact . "
-    "[ !n n [ n dec odd ] [ 1 ] ifelse ] :even "
-    "[ !n n [ n dec even ] [ 0 ] ifelse ] :odd "
+    "[ :n n [ n dec odd ] [ 1 ] ifelse ] :even "
+    "[ :n n [ n dec even ] [ 0 ] ifelse ] :odd "
     "42 dup even . odd . "
     "2 dup dup * + . 42 67 drop "
 ;
