@@ -62,20 +62,20 @@ bool eval_case_equals(const std::string& case_text, std::int32_t value) {
 }
 
 TEST_CASE("Incorrect programs do not work unexpectedly well", "[eval]") {
-    REQUIRE( eval_case_fails("["s) );
-    REQUIRE( eval_case_fails("+"s) );
-    REQUIRE( eval_case_fails("-"s) );
-    REQUIRE( eval_case_fails("."s) );
-    REQUIRE( eval_case_fails("<"s) );
-    REQUIRE( eval_case_fails("*"s) );
-    REQUIRE( eval_case_fails("/"s) );
-    REQUIRE( eval_case_fails("]"s) );
-    REQUIRE( eval_case_fails("2 2 + +"s) );
-    REQUIRE( eval_case_fails("2 0 /"s) );
+    CHECK( eval_case_fails("["s) );
+    CHECK( eval_case_fails("+"s) );
+    CHECK( eval_case_fails("-"s) );
+    CHECK( eval_case_fails("."s) );
+    CHECK( eval_case_fails("<"s) );
+    CHECK( eval_case_fails("*"s) );
+    CHECK( eval_case_fails("/"s) );
+    CHECK( eval_case_fails("]"s) );
+    CHECK( eval_case_fails("2 2 + +"s) );
+    CHECK( eval_case_fails("2 0 /"s) );
 }
 
 TEST_CASE("Correct programs are working as expected", "[eval]"){
-    REQUIRE( eval_case_equals("1 1 +"s, 2) );
-    REQUIRE( eval_case_equals("2 dup +"s, 4) );
-    REQUIRE( eval_case_equals("[ !n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact 5 fact"s, 120));
+    CHECK( eval_case_equals("1 1 +"s, 2) );
+    CHECK( eval_case_equals("2 dup +"s, 4) );
+    CHECK( eval_case_equals("[ !n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact 5 fact"s, 120));
 }
