@@ -7,8 +7,29 @@
 #include <string_view>
 #include <cstdint>
 
+#define OP_CASES(X_TOKEN, X_CALL) \
+    X_CALL(Push, is_all_digits, eval_push) \
+    X_TOKEN(Add, "+", eval_add) \
+    X_TOKEN(Sub, "-", eval_sub) \
+    X_TOKEN(Mul, "*", eval_mul) \
+    X_TOKEN(Div, "/", eval_div) \
+    X_TOKEN(LessThan, "<", eval_less_than) \
+    X_TOKEN(Print, ".", eval_print) \
+    X_TOKEN(IfElse, "ifelse", eval_if_else) \
+    X_TOKEN(ForLoop, "for", eval_for) \
+    X_TOKEN(StartRecord, "[", eval_start_record) \
+    X_TOKEN(EndRecord, "]", eval_end_record) \
+    X_CALL(StoreWord, is_store_word, eval_store_word) \
+    X_CALL(SetWord, is_set_word, eval_set_word) \
+    X_CALL(PushWord, is_push_word, eval_push_word ) \
+    X_CALL(CallWord, is_call_word, eval_call_word)
+
 /// An operation tag used to mark all primitive operations
-enum class operation_tag_t;
+enum class operation_tag_t {
+    #define OP_CASE(name, _, __) name,
+        OP_CASES(OP_CASE, OP_CASE)
+    #undef OP_CASE
+};
 
 /// An operation along with its payload
 struct operation_t {
@@ -35,7 +56,7 @@ struct value_t {
     /// and returns true, otherwise returns false
     bool matches_number(std::int32_t& out) const;
 
-    /// if matches word, clears out, then fills it with ops from value
+    /// if matches word_range, places it in out
     /// and returns true, otherwise returns false
     bool matches_word_range(word_range_t& out) const;
 private:
@@ -109,7 +130,7 @@ void try_parse_word(const std::string& s, word_t& out_word, bool& success, inter
 #define LOG_ERR(message) do { \
         std::cerr \
             << __LINE__  << ':' \
-            << message << std::endl; \
+            << "Error: " << message << std::endl; \
     } while(0)
 
 value_t::value_t(std::int32_t n)
@@ -200,6 +221,14 @@ bool is_store_word(std::string_view sv, std::int32_t& payload, interpreter_conte
     return is_call_word(sub_sv, payload, context);
 }
 
+bool is_set_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
+    if (sv.size() < 2 || sv[0] != '!')
+        return false;
+
+    auto sub_sv = sv.substr(1, sv.size() - 1);
+    return is_call_word(sub_sv, payload, context);
+}
+
 bool is_push_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
     if (sv.size() < 2 || sv[0] != '&')
         return false;
@@ -207,27 +236,6 @@ bool is_push_word(std::string_view sv, std::int32_t& payload, interpreter_contex
     auto sub_sv = sv.substr(1, sv.size() - 1);
     return is_call_word(sub_sv, payload, context);
 }
-
-#define OP_CASES(X_TOKEN, X_CALL) \
-    X_CALL(Push, is_all_digits, eval_push) \
-    X_TOKEN(Add, "+", eval_add) \
-    X_TOKEN(Sub, "-", eval_sub) \
-    X_TOKEN(Mul, "*", eval_mul) \
-    X_TOKEN(Div, "/", eval_div) \
-    X_TOKEN(LessThan, "<", eval_less_than) \
-    X_TOKEN(Print, ".", eval_print) \
-    X_TOKEN(IfElse, "ifelse", eval_if_else) \
-    X_TOKEN(StartRecord, "[", eval_start_record) \
-    X_TOKEN(EndRecord, "]", eval_end_record) \
-    X_CALL(StoreWord, is_store_word, eval_store_word) \
-    X_CALL(PushWord, is_push_word, eval_push_word ) \
-    X_CALL(CallWord, is_call_word, eval_call_word)
-
-enum class operation_tag_t {
-    #define OP_CASE(name, _, __) name,
-        OP_CASES(OP_CASE, OP_CASE)
-    #undef OP_CASE
-};
 
 bool try_pop_number(interpreter_context_t& ctx, std::int32_t& out) {
     if (ctx.stack.empty()) return false;
@@ -262,7 +270,7 @@ bool eval_add(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        LOG_ERR("Error: Expected two numers on top of a stack");
+        LOG_ERR("Expected two numers on top of a stack");
         return false;
     }
 
@@ -279,7 +287,7 @@ bool eval_sub(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        LOG_ERR("Error: Expected two numers on top of a stack");
+        LOG_ERR("Expected two numers on top of a stack");
         return false;
     }
 
@@ -296,7 +304,7 @@ bool eval_mul(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        LOG_ERR("Error: Expected two numers on top of a stack");
+        LOG_ERR("Expected two numers on top of a stack");
         return false;
     }
 
@@ -313,12 +321,12 @@ bool eval_div(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        LOG_ERR("Error: Expected two numers on top of a stack");
+        LOG_ERR("Expected two numers on top of a stack");
         return false;
     }
 
     if (rhs == 0) {
-        LOG_ERR("Error: Division by zero");
+        LOG_ERR("Division by zero");
         return false;
     }
 
@@ -335,11 +343,11 @@ bool eval_less_than(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        LOG_ERR("Error: Expected two numers on top of a stack");
+        LOG_ERR("Expected two numers on top of a stack");
         return false;
     }
 
-    context.stack.push_back(lhs < rhs ? 1 : 0);
+    context.stack.push_back(lhs < rhs ? -1 : 0);
     return true;
 }
 
@@ -351,7 +359,7 @@ bool eval_print(std::int32_t payload, interpreter_context_t& context) {
 
     std::int32_t x;
     if (!try_pop_number(context, x)) {
-        LOG_ERR("Error: Expected a number on top of a stack");
+        LOG_ERR("Expected a number on top of a stack");
         return false;
     }
 
@@ -368,19 +376,60 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
 
     word_range_t else_word_range{0, 0}, then_word_range{0, 0};
     if (!(try_pop_word(context, else_word_range) && try_pop_word(context, then_word_range))) {
-        LOG_ERR("Error: Expected a word for else and a word for then on top of a stack");
+        LOG_ERR("Expected a word for else and a word for then on top of a stack");
         return false;
     }
 
     std::int32_t cond;
     if (!try_pop_number(context, cond)) {
-        LOG_ERR("Error: Expected a number on top of a stack");
+        LOG_ERR("Expected a number on top of a stack");
         return false;
     }
 
     return cond
         ? eval_word(context, then_word_range)
         : eval_word(context, else_word_range);
+}
+
+bool eval_for(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::ForLoop, payload);
+        return true;
+    }
+
+    word_range_t body_word_range{0, 0};
+    if (!try_pop_word(context, body_word_range)) {
+        LOG_ERR("Expected a word for a body on top of a stack");
+        return false;
+    }
+
+    std::int32_t end;
+    if (!try_pop_number(context, end)) {
+        LOG_ERR("Expected a number on top of a stack");
+        return false;
+    }
+
+    std::int32_t start;
+    if (!try_pop_number(context, start)) {
+        LOG_ERR("Expected a number on top of a stack");
+        return false;
+    }
+
+    auto i_id = context.interner.intern("i");
+
+    word_range_t i_range{ context.program_word.size(), context.program_word.size() };
+    context.program_word.emplace_back(operation_tag_t::Push, 0);
+    context.word_stack.emplace_back(i_id, i_range);
+
+    for (std::int32_t i = start; i <= end; ++i) {
+        // we know that at i_range.start lies our magic "i",
+        // so we modify payload directly during each iteration
+        context.program_word[i_range.start].payload = i;
+        if (!eval_word(context, body_word_range))
+            return false;
+    }
+
+    return true;
 }
 
 bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
@@ -393,7 +442,7 @@ bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
 
 bool eval_end_record(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting < 1) {
-        LOG_ERR("Error: Tried to decrease word recoder nesting while it is less than one");
+        LOG_ERR("Tried to decrease word recoder nesting while it is less than one");
         return false;
     }
 
@@ -436,7 +485,37 @@ bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
         return true;
     }
 
-    LOG_ERR("Error: Expected a number or a word on a top of a stack");
+    LOG_ERR("Expected a number or a word on a top of a stack");
+    return false;
+}
+
+bool eval_set_word(std::int32_t word_id, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::SetWord, word_id);
+        return true;
+    }
+
+    word_range_t word_range{0, 0};
+    if (!try_pop_word(context, word_range)) {
+        if (std::int32_t num; try_pop_number(context, num)) {
+            word_range = { context.program_word.size(), context.program_word.size() };
+            context.program_word.emplace_back(operation_tag_t::Push, num);
+        } else {
+            LOG_ERR("Expected a number or a word on a top of a stack");
+            return false;
+        }
+    }
+
+    for (std::size_t i = 0; i < context.word_stack.size(); i++) {
+        auto idx = context.word_stack.size() - 1 - i;
+        word_entry_t& word_entry = context.word_stack[idx];
+        if (word_entry.key == word_id) {
+            word_entry.range = word_range;
+            return true;
+        }
+    }
+
+    LOG_ERR("A word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
     return false;
 }
 
@@ -456,7 +535,7 @@ bool eval_push_word(std::int32_t word_id, interpreter_context_t& context) {
         }
     }
 
-    LOG_ERR("Error: a word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
+    LOG_ERR("A word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
     return false;
 }
 
@@ -477,7 +556,7 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
         }
     }
 
-    LOG_ERR("Error: a word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
+    LOG_ERR("A word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
     return false;
 }
 
@@ -575,10 +654,17 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         "[ :a ] :drop "
         "[ :b :a b a ] :swap "
         "[ :b :a a b a ] :over "
+        "[ :n3 :n2 :n1 n2 n3 n1 ] :rot "
         "[ 0 swap - ] :neg "
         "[ 1 + ] :inc "
         "[ 1 - ] :dec "
-        "[ :body :count 0 count < [ body count dec &body loop ] [ ] ifelse ] :loop "
+        "[ swap < ] :> "
+        "[ < [ 0 ] [ 1 neg ] ifelse ] :>= "
+        "[ > [ 0 ] [ 1 neg ] ifelse ] :<= "
+        "[ :lhs :rhs lhs rhs > [ lhs ] [ rhs ] ifelse ] :max "
+        "[ :lhs :rhs lhs rhs < [ lhs ] [ rhs ] ifelse ] :min "
+        "[ :op op 0 > [ op ] [ op neg ] ifelse ] :abs "
+        "[ :body :count count 0 > [ body count dec &body loop ] [ ] ifelse ] :loop "
     ;
 
     interpreter_context_t context;
@@ -587,30 +673,30 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
     word_t word;
     try_parse_word(prologue + program_text, word, successful_parse, context);
     if (!successful_parse) {
-        LOG_ERR("Error: Failed to parse a program");
+        LOG_ERR("Failed to parse a program");
         return false;
     }
 
     if (word.empty()) {
-        LOG_ERR("Error: Program is empty");
+        LOG_ERR("Program is empty");
         return false;
     }
 
     context.program_word = word;
 
     if (!eval_word(context, {0, context.program_word.size()-1})) {
-        LOG_ERR("Error: Program evaluation failed");
+        LOG_ERR("Program evaluation failed");
         return false;
     }
 
     if (context.stack.empty()) {
-        LOG_ERR("Error: resulting stack is empty, expected at leas one number on top");
+        LOG_ERR("Resulting stack is empty, expected at least one number on top");
         return false;
     }
 
     std::int32_t num;
     if (!context.stack.back().matches_number(num)) {
-        LOG_ERR("Error: Expected a number on a top of a stack as a result of a program");
+        LOG_ERR("Expected a number on a top of a stack as a result of a program");
         return false;
     }
 
@@ -619,3 +705,5 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
 }
 
 #endif
+
+#undef OP_CASES
