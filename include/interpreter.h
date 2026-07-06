@@ -96,6 +96,12 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
 
 #include <iostream>
 
+#define LOG_ERR(message) do { \
+        std::cerr \
+            << __LINE__  << ':' \
+            << message << std::endl; \
+    } while(0)
+
 value_t::value_t(std::int32_t n)
     : data(n) {}
 
@@ -241,7 +247,7 @@ bool eval_add(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected two numers on top of a stack");
         return false;
     }
 
@@ -258,7 +264,7 @@ bool eval_sub(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected two numers on top of a stack");
         return false;
     }
 
@@ -275,7 +281,7 @@ bool eval_mul(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected two numers on top of a stack");
         return false;
     }
 
@@ -292,12 +298,12 @@ bool eval_div(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected two numers on top of a stack");
         return false;
     }
 
     if (rhs == 0) {
-        std::cerr << "Error: Division by zero" << std::endl;
+        LOG_ERR("Error: Division by zero");
         return false;
     }
 
@@ -314,7 +320,7 @@ bool eval_less_than(std::int32_t payload, interpreter_context_t& context) {
     std::int32_t lhs, rhs;
 
     if (!(try_pop_number(context, rhs) && try_pop_number(context, lhs))) {
-        std::cerr << "Error: Expected two numers on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected two numers on top of a stack");
         return false;
     }
 
@@ -330,7 +336,7 @@ bool eval_print(std::int32_t payload, interpreter_context_t& context) {
 
     std::int32_t x;
     if (!try_pop_number(context, x)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected a number on top of a stack");
         return false;
     }
 
@@ -347,13 +353,13 @@ bool eval_if_else(std::int32_t payload, interpreter_context_t& context) {
 
     word_t else_word, then_word;
     if (!(try_pop_word(context, else_word) && try_pop_word(context, then_word))) {
-        std::cerr << "Error: Expected a word for else and a word for then on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected a word for else and a word for then on top of a stack");
         return false;
     }
 
     std::int32_t cond;
     if (!try_pop_number(context, cond)) {
-        std::cerr << "Error: Expected a number on top of a stack" << std::endl;
+        LOG_ERR("Error: Expected a number on top of a stack");
         return false;
     }
 
@@ -372,7 +378,7 @@ bool eval_start_record(std::int32_t payload, interpreter_context_t& context) {
 
 bool eval_end_record(std::int32_t payload, interpreter_context_t& context) {
     if (context.word_recorder_nesting < 1) {
-        std::cerr << "Error: Tried to decrease word recoder nesting while it is less than one" << std::endl;
+        LOG_ERR("Error: Tried to decrease word recoder nesting while it is less than one");
         return false;
     }
 
@@ -395,7 +401,7 @@ bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
 
     word_t word;
     if (!try_pop_word(context, word)) {
-        std::cerr << "Error: Expected a word on a top of a stack" << std::endl;
+        LOG_ERR("Error: Expected a word on a top of a stack");
         return false;
     }
 
@@ -411,7 +417,7 @@ bool eval_bind_to_word(std::int32_t word_id, interpreter_context_t& context) {
 
     std::int32_t num;
     if (!try_pop_number(context, num)) {
-        std::cerr << "Error: Expected a number on a top of a stack" << std::endl;
+        LOG_ERR("Error: Expected a number on a top of a stack");
         return false;
     }
 
@@ -439,9 +445,7 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
         }
     }
 
-    std::cerr
-        << "Error: a word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack"
-        << std::endl;
+    LOG_ERR("Error: a word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
     return false;
 }
 
@@ -528,30 +532,32 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         "[ !a a a ] :dup "
         "[ !a ] :drop "
         "[ !b !a b a ] :swap "
-        "[ 0 swap - ] :neg ";
+        "[ 0 swap - ] :neg "
+        "[ 1 + ] :inc "
+        "[ 1 - ] :dec ";
 
     interpreter_context_t context;
 
     bool successful_parse = false;
     word_t word = try_parse_word(prologue + program_text, successful_parse, context);
     if (!successful_parse) {
-        std::cerr << "Error: Failed to parse a program" << std::endl;
+        LOG_ERR("Error: Failed to parse a program");
         return false;
     }
 
     if (!eval_word(word, context)) {
-        std::cerr << "Error: Program evaluation failed" << std::endl;
+        LOG_ERR("Error: Program evaluation failed");
         return false;
     }
 
     if (context.stack.empty()) {
-        std::cerr << "Error: resulting stack is empty, expected at leas one number on top" << std::endl;
+        LOG_ERR("Error: resulting stack is empty, expected at leas one number on top");
         return false;
     }
 
     std::int32_t num;
     if (!context.stack.back().matches_number(num)) {
-        std::cerr << "Error: Expected a number on a top of a stack" << std::endl;
+        LOG_ERR("Error: Expected a number on a top of a stack");
         return false;
     }
 
