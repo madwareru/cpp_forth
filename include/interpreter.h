@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <vector>
 #include <variant>
 #include <string>
@@ -90,7 +91,7 @@ bool eval_operation(const operation_t& op, interpreter_context_t& context);
 bool try_parse_operation(std::string_view sv, operation_t& op, interpreter_context_t& context);
 
 /// A function that tries to parse a word of operations
-word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t& context);
+void try_parse_word(const std::string& s, word_t& out_word, bool& success, interpreter_context_t& context);
 
 #ifdef interpreter_impl
 
@@ -118,7 +119,10 @@ bool value_t::matches_number(std::int32_t& out) const {
 
 bool value_t::matches_word(word_t& out) const {
     if (auto* p = std::get_if<word_t>(&data)) {
-        out = *p;
+        out.clear();
+        out.reserve(p->size());
+        for(auto op : *p)
+            out.push_back(op);
         return true;
     }
     return false;
@@ -469,7 +473,7 @@ bool is_whitespace(char ch) {
         ch == '\n';
 }
 
-word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t& context) {
+void try_parse_word(const std::string& s, word_t& out_word, bool& success, interpreter_context_t& context) {
     word_t word;
     std::size_t start = 0;
     do {
@@ -478,7 +482,11 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
 
         if (start == s.size()) {
             success = true;
-            return word;
+            out_word.clear();
+            out_word.reserve(word.size());
+            for(auto op : word)
+                out_word.push_back(op);
+            return;
         }
 
         std::size_t pos = s.find_first_of(" \t\n", start);
@@ -498,11 +506,14 @@ word_t try_parse_word(const std::string& s, bool& success, interpreter_context_t
         }
 
         success = false;
-        return {};
+        return;
     } while(start < s.size());
 
     success = true;
-    return word;
+    out_word.clear();
+    out_word.reserve(word.size());
+    for(auto op : word)
+        out_word.push_back(op);
 }
 
 bool eval_program(const std::string& program_text, std::int32_t& res) {
@@ -517,7 +528,8 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
     interpreter_context_t context;
 
     bool successful_parse = false;
-    word_t word = try_parse_word(prologue + program_text, successful_parse, context);
+    word_t word;
+    try_parse_word(prologue + program_text, word, successful_parse, context);
     if (!successful_parse) {
         LOG_ERR("Error: Failed to parse a program");
         return false;
@@ -535,7 +547,7 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
 
     std::int32_t num;
     if (!context.stack.back().matches_number(num)) {
-        LOG_ERR("Error: Expected a number on a top of a stack");
+        LOG_ERR("Error: Expected a number on a top of a stack as a result of a program");
         return false;
     }
 

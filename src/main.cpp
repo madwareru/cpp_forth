@@ -29,10 +29,8 @@ int main() {
         std::cout << "> ";
         std::getline(std::cin, next_command);
         if (next_command != "quit") {
-            if(!eval_program(next_command, res)) {
-                return 1;
-            }
-            std::cout << "Result of a program is " << res << std::endl;
+            if(eval_program(next_command, res))
+                std::cout << "Result of a program is " << res << std::endl;
         }
     }
 
