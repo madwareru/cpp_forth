@@ -578,7 +578,7 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         "[ 0 swap - ] :neg "
         "[ 1 + ] :inc "
         "[ 1 - ] :dec "
-        "[ :body :count 0 count < [ body count dec &body loop ] [ :it it ] ifelse ] :loop "
+        "[ :body :count 0 count < [ body count dec &body loop ] [ ] ifelse ] :loop "
     ;
 
     interpreter_context_t context;
