@@ -44,6 +44,12 @@ if(MSVC)
   target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
 else()
   target_compile_options(
-        ${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror
-    )
+    ${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror
+      # to run with sanitizers uncomment this:
+      # -g -Og -fsanitize=address -fno-omit-frame-pointer
+  )
+  # to run with sanitizers uncomment also this:
+  #target_link_options(${PROJECT_NAME} PRIVATE
+  #  -fsanitize=address
+  #)
 endif()

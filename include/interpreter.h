@@ -115,7 +115,7 @@ bool eval_program(const std::string& program_text, std::int32_t& res);
 bool eval_word(interpreter_context_t& context, word_range_t range);
 
 /// A function which interpret an operation from the word
-bool eval_operation(const operation_t& op, interpreter_context_t& context);
+bool eval_operation(operation_t op, interpreter_context_t& context);
 
 /// A function that tries to parse a single operation
 bool try_parse_operation(std::string_view sv, operation_t& op, interpreter_context_t& context);
@@ -495,27 +495,33 @@ bool eval_set_word(std::int32_t word_id, interpreter_context_t& context) {
         return true;
     }
 
-    word_range_t word_range{0, 0};
-    if (!try_pop_word(context, word_range)) {
-        if (std::int32_t num; try_pop_number(context, num)) {
-            word_range = { context.program_word.size(), context.program_word.size() };
-            context.program_word.emplace_back(operation_tag_t::Push, num);
-        } else {
-            LOG_ERR("Expected a number or a word on a top of a stack");
-            return false;
-        }
+    std::int32_t num;
+    if (!try_pop_number(context, num)) {
+        LOG_ERR("Expected a number or a word on a top of a stack");
+        return false;
     }
 
     for (std::size_t i = 0; i < context.word_stack.size(); i++) {
         auto idx = context.word_stack.size() - 1 - i;
-        word_entry_t& word_entry = context.word_stack[idx];
-        if (word_entry.key == word_id) {
-            word_entry.range = word_range;
+        auto entry = context.word_stack[idx];
+        if (entry.key == word_id) {
+            if (entry.range.start != entry.range.end) {
+                // not a variable word;
+                continue;
+            }
+
+            operation_t& op = context.program_word[entry.range.start];
+            if (op.tag != operation_tag_t::Push) {
+                // still not a variable word;
+                continue;
+            }
+
+            op.payload = num;
             return true;
         }
     }
 
-    LOG_ERR("A word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
+    LOG_ERR("A variable '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
     return false;
 }
 
@@ -527,7 +533,7 @@ bool eval_push_word(std::int32_t word_id, interpreter_context_t& context) {
 
     for (std::size_t i = 0; i < context.word_stack.size(); i++) {
         auto idx = context.word_stack.size() - 1 - i;
-        const word_entry_t& word_entry = context.word_stack[idx];
+        word_entry_t word_entry = context.word_stack[idx];
         if (word_entry.key == word_id) {
             word_range_t word_range = word_entry.range;
             context.stack.push_back(word_range);
@@ -547,7 +553,7 @@ bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
 
     for (std::size_t i = 0; i < context.word_stack.size(); i++) {
         auto idx = context.word_stack.size() - 1 - i;
-        const word_entry_t& word_entry = context.word_stack[idx];
+        word_entry_t word_entry = context.word_stack[idx];
         if (word_entry.key == word_id) {
             if (!eval_word(context, word_entry.range))
                 return false;
@@ -564,14 +570,14 @@ bool eval_word(interpreter_context_t& context, word_range_t range) {
     word_stack_guard_t guard(context);
 
     for (std::size_t i = range.start; i <= range.end; ++i) {
-        auto op = context.program_word[i];
+        operation_t op = context.program_word[i];
         if (!eval_operation(op, context))
             return false;
     }
     return true;
 }
 
-bool eval_operation(const operation_t& op, interpreter_context_t& context) {
+bool eval_operation(operation_t op, interpreter_context_t& context) {
     switch(op.tag) {
         #define OP_CASE(name, _, function) \
             case operation_tag_t::name: return function(op.payload, context);
@@ -664,8 +670,7 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         "[ :lhs :rhs lhs rhs > [ lhs ] [ rhs ] ifelse ] :max "
         "[ :lhs :rhs lhs rhs < [ lhs ] [ rhs ] ifelse ] :min "
         "[ :op op 0 > [ op ] [ op neg ] ifelse ] :abs "
-        "[ :body :count count 0 > [ body count dec &body loop ] [ ] ifelse ] :loop "
-    ;
+        "[ :body :count count  0 > [ body count dec &body loop ] [ ] ifelse ] :loop ";
 
     interpreter_context_t context;
 
