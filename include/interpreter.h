@@ -9,6 +9,12 @@
 
 #define OP_CASES(X_TOKEN, X_CALL) \
     X_CALL(Push, is_all_digits, eval_push) \
+    X_TOKEN(Dup, "dup", eval_dup) \
+    X_TOKEN(Drop, "drop", eval_drop) \
+    X_TOKEN(Swap, "swap", eval_swap) \
+    X_TOKEN(Over, "over", eval_over) \
+    X_TOKEN(RotLeft, "rot", eval_rot_left) \
+    X_TOKEN(RotRight, "rot-r", eval_rot_right) \
     X_TOKEN(Add, "+", eval_add) \
     X_TOKEN(Sub, "-", eval_sub) \
     X_TOKEN(Mul, "*", eval_mul) \
@@ -20,8 +26,7 @@
     X_TOKEN(StartRecord, "[", eval_start_record) \
     X_TOKEN(EndRecord, "]", eval_end_record) \
     X_CALL(StoreWord, is_store_word, eval_store_word) \
-    X_CALL(SetWord, is_set_word, eval_set_word) \
-    X_CALL(PushWord, is_push_word, eval_push_word ) \
+    X_CALL(SetVar, is_set_var, eval_set_var) \
     X_CALL(CallWord, is_call_word, eval_call_word)
 
 /// An operation tag used to mark all primitive operations
@@ -221,16 +226,8 @@ bool is_store_word(std::string_view sv, std::int32_t& payload, interpreter_conte
     return is_call_word(sub_sv, payload, context);
 }
 
-bool is_set_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
+bool is_set_var(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
     if (sv.size() < 2 || sv[0] != '!')
-        return false;
-
-    auto sub_sv = sv.substr(1, sv.size() - 1);
-    return is_call_word(sub_sv, payload, context);
-}
-
-bool is_push_word(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
-    if (sv.size() < 2 || sv[0] != '&')
         return false;
 
     auto sub_sv = sv.substr(1, sv.size() - 1);
@@ -257,6 +254,114 @@ bool eval_push(std::int32_t num, interpreter_context_t& context) {
         return true;
     }
     context.stack.push_back(num);
+
+    return true;
+}
+
+bool eval_dup(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Dup, payload);
+        return true;
+    }
+
+    if (context.stack.empty()) {
+        LOG_ERR("Expected a number or a word on a top of a stack");
+        return false;
+    }
+
+    value_t back = context.stack.back();
+    context.stack.push_back(back);
+
+    return true;
+}
+
+bool eval_drop(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Drop, payload);
+        return true;
+    }
+
+    if (context.stack.empty()) {
+        LOG_ERR("Expected a number or a word on a top of a stack");
+        return false;
+    }
+
+    context.stack.pop_back();
+
+    return true;
+}
+
+bool eval_swap(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Swap, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 2) {
+        LOG_ERR("Expected at least two values on a top of a stack");
+        return false;
+    }
+
+    value_t before_back = context.stack[context.stack.size() - 2];
+    context.stack[context.stack.size() - 2] = context.stack.back();
+    context.stack.back() = before_back;
+
+    return true;
+}
+
+bool eval_over(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::Over, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 2) {
+        LOG_ERR("Expected at least two values on a top of a stack");
+        return false;
+    }
+
+    value_t before_back = context.stack[context.stack.size() - 2];
+    context.stack.push_back(before_back);
+
+    return true;
+}
+
+bool eval_rot_left(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::RotLeft, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 3) {
+        LOG_ERR("Expected at least two values on a top of a stack");
+        return false;
+    }
+
+    value_t rotated = context.stack[context.stack.size() - 3];
+    for (std::size_t i = context.stack.size() - 2; i < context.stack.size(); ++i) {
+        context.stack[i - 1] = context.stack[i];
+    }
+    context.stack.back() = rotated;
+
+    return true;
+}
+
+bool eval_rot_right(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::RotRight, payload);
+        return true;
+    }
+
+    if (context.stack.size() < 3) {
+        LOG_ERR("Expected at least two values on a top of a stack");
+        return false;
+    }
+
+    value_t rotated = context.stack.back();
+    for (std::size_t i = 0; i < 2; ++i) {
+        context.stack[context.stack.size() - i - 1] = context.stack[context.stack.size() - i - 2];
+    }
+    context.stack[context.stack.size() - 3] = rotated;
 
     return true;
 }
@@ -489,9 +594,9 @@ bool eval_store_word(std::int32_t word_id, interpreter_context_t& context) {
     return false;
 }
 
-bool eval_set_word(std::int32_t word_id, interpreter_context_t& context) {
+bool eval_set_var(std::int32_t word_id, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
-        context.recording_word.emplace_back(operation_tag_t::SetWord, word_id);
+        context.recording_word.emplace_back(operation_tag_t::SetVar, word_id);
         return true;
     }
 
@@ -522,26 +627,6 @@ bool eval_set_word(std::int32_t word_id, interpreter_context_t& context) {
     }
 
     LOG_ERR("A variable '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
-    return false;
-}
-
-bool eval_push_word(std::int32_t word_id, interpreter_context_t& context) {
-    if (context.word_recorder_nesting > 0) {
-        context.recording_word.emplace_back(operation_tag_t::PushWord, word_id);
-        return true;
-    }
-
-    for (std::size_t i = 0; i < context.word_stack.size(); i++) {
-        auto idx = context.word_stack.size() - 1 - i;
-        word_entry_t word_entry = context.word_stack[idx];
-        if (word_entry.key == word_id) {
-            word_range_t word_range = word_entry.range;
-            context.stack.push_back(word_range);
-            return true;
-        }
-    }
-
-    LOG_ERR("A word '" << context.interner.get_interned_string(word_id) << "' not found in a word stack");
     return false;
 }
 
@@ -656,21 +741,17 @@ void try_parse_word(const std::string& s, word_t& out_word, bool& success, inter
 
 bool eval_program(const std::string& program_text, std::int32_t& res) {
     static const std::string prologue =
-        "[ :a a a ] :dup "
-        "[ :a ] :drop "
-        "[ :b :a b a ] :swap "
-        "[ :b :a a b a ] :over "
-        "[ :n3 :n2 :n1 n2 n3 n1 ] :rot "
         "[ 0 swap - ] :neg "
         "[ 1 + ] :inc "
         "[ 1 - ] :dec "
         "[ swap < ] :> "
         "[ < [ 0 ] [ 1 neg ] ifelse ] :>= "
         "[ > [ 0 ] [ 1 neg ] ifelse ] :<= "
-        "[ :lhs :rhs lhs rhs > [ lhs ] [ rhs ] ifelse ] :max "
-        "[ :lhs :rhs lhs rhs < [ lhs ] [ rhs ] ifelse ] :min "
-        "[ :op op 0 > [ op ] [ op neg ] ifelse ] :abs "
-        "[ :body :count count  0 > [ body count dec &body loop ] [ ] ifelse ] :loop ";
+        "[ :max-rhs :max-lhs max-lhs max-rhs > [ max-lhs ] [ max-rhs ] ifelse ] :max "
+        "[ :min-rhs :min-lhs min-lhs min-rhs < [ min-lhs ] [ min-rhs ] ifelse ] :min "
+        "[ :abs-op abs-op 0 > [ abs-op ] [ abs-op neg ] ifelse ] :abs "
+        "[ [ ] ifelse ] :when "
+        "[ 1 rot-r for ] :times ";
 
     interpreter_context_t context;
 
