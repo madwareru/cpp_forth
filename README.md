@@ -80,7 +80,7 @@ The next example word is the following:
 Evaluating this word will first push the value `1990` on a value stack, then pop int from a stack and turn an empty word stack into the `[| <- (birth-year: <1990>)]`, so as we can see, the value are ending up boxed as a word with a single `Push` operation.
 
 ### Setting new value for a value
-In the case when there is a value (a word with a single `Push` operation) on a word stack, we also support a `SetVariable` operation which can replace a number which will be pushed during evaluation of a word, i. e. if we have a word stack of a form `[ ... <- (age: <35>) <- .. ]`, where `(age: <35>)` is the first occurance of a binging to `age` on top of a stack, 
+In the case when there is a value (a word with a single `Push` operation) on a word stack, we also support a `SetVar` operation which can replace a number which will be pushed during evaluation of a word, i. e. if we have a word stack of a form `[ ... <- (age: <35>) <- .. ]`, where `(age: <35>)` is the first occurance of a binging to `age` on top of a stack, 
 and if we also have a value stack of a form `[ ... <- 36 ]`, then if we evaluate an operation which looks like an any sequence of printable characters with a single character '!' before it ( and in our case it should be exactly `!age`), 
 then the value `36` would be popped from a stack and a word stack would be modified so it will look exactly like 
 `[ ... <- (age: <36>) <- .. ]`.
