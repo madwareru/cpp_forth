@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(CppForth VERSION 1.0 LANGUAGES CXX)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON) # Для редакторов
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 
 enable_testing()
@@ -15,7 +15,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(catch2)
 
-# Автоматический поиск исходников
 file(GLOB_RECURSE SOURCES "src/*.cpp")
 file(GLOB_RECURSE TESTS "tests/*.cpp")
 file(GLOB_RECURSE HEADERS "include/*.h")
@@ -28,13 +27,12 @@ target_include_directories(tests
 )
 include(Catch)
 catch_discover_tests(tests
-  DISCOVERY_MODE PRE_TEST       # безопасно для кросс-компиляции и CI
-  ADD_TAGS_AS_LABELS            # теги [unit], [slow] и т.п. станут лейблами CTest
+  DISCOVERY_MODE PRE_TEST
+  ADD_TAGS_AS_LABELS
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
-# Подключение заголовков (важно для IDE)
 target_include_directories(${PROJECT_NAME}
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
