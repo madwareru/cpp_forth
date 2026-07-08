@@ -23,6 +23,7 @@
     X_TOKEN(Print, ".", eval_print) \
     X_TOKEN(IfElse, "ifelse", eval_if_else) \
     X_TOKEN(ForLoop, "for", eval_for) \
+    X_TOKEN(WhileLoop, "while", eval_while) \
     X_TOKEN(StartRecord, "[", eval_start_record) \
     X_TOKEN(EndRecord, "]", eval_end_record) \
     X_CALL(StoreWord, is_store_word, eval_store_word) \
@@ -533,6 +534,41 @@ bool eval_for(std::int32_t payload, interpreter_context_t& context) {
         if (!eval_word(context, body_word_range))
             return false;
     }
+
+    return true;
+}
+
+bool eval_while(std::int32_t payload, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::WhileLoop, payload);
+        return true;
+    }
+
+    word_range_t body_word_range{0, 0};
+    if (!try_pop_word(context, body_word_range)) {
+        LOG_ERR("Expected a word for a body on top of a stack");
+        return false;
+    }
+
+    word_range_t cond_word_range{0, 0};
+    if (!try_pop_word(context, cond_word_range)) {
+        LOG_ERR("Expected a word for a cond on top of a stack");
+        return false;
+    }
+
+    std::int32_t cond_value = -1;
+    do {
+        if (!eval_word(context, cond_word_range))
+            return false;
+
+        if (!try_pop_number(context, cond_value)) {
+            LOG_ERR("Expected that a condidion word would store numeric result on top of a stack");
+            return false;
+        }
+
+        if (cond_value && !eval_word(context, body_word_range))
+            return false;
+    } while(cond_value);
 
     return true;
 }
