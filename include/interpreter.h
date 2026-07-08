@@ -647,14 +647,14 @@ bool eval_set_var(std::int32_t word_id, interpreter_context_t& context) {
         auto entry = context.word_stack[idx];
         if (entry.key == word_id) {
             if (entry.range.start != entry.range.end) {
-                // not a variable word;
-                continue;
+                LOG_ERR("A word '" << context.interner.get_interned_string(word_id) << "' is not a variable!");
+                return false;
             }
 
             operation_t& op = context.program_word[entry.range.start];
             if (op.tag != operation_tag_t::Push) {
-                // still not a variable word;
-                continue;
+                LOG_ERR("A word '" << context.interner.get_interned_string(word_id) << "' is not a variable!");
+                return false;
             }
 
             op.payload = num;

@@ -2,8 +2,117 @@
 
 [![CMake on multiple platforms](https://github.com/madwareru/cpp_forth/actions/workflows/cmake-multi-platform.yml/badge.svg?branch=main)](https://github.com/madwareru/cpp_forth/actions/workflows/cmake-multi-platform.yml)
 
-Данный проект является почти дословным портом интерпретатора языка [fortik](https://github.com/true-grue/fortik/tree/main) на C++
+This project is inspired by a beautiful [fortik](https://github.com/true-grue/fortik/tree/main).
 
-Синтаксически язык слегка отличается, но по духу они очень похожи
+It's essentially a very small dialect of a Forth language, 
+which unfortunately lacks it's own official name. You can call 
+it a FortikCpp if you want. Or any other name, it doesn't matter 
+much to me.
 
-Проект написан во время изучения языка C++, поэтому возможны серьёзные недочёты
+It was written with an educational purpose, and also just for fun.
+
+There is no warranty on how safely this interpreter is implemented, 
+although I tried to be as careful as I can. Fell free to shame me in 
+an issue if you find some examples of programs which will cause it to 
+segmentation fault.
+
+## Quick introduction to the language
+
+The language has a very small set of primitive operations, and such operations 
+are supposed to be written as sequences of characters separated by whitespace. 
+These sequences of operations are known as words and they read strictly from left
+to right. 
+
+The key property of a program written in FortikCpp is that the data for 
+it should be ready. There are couple of stacks where the data could be looked up for:
+1. The first stack is a stack of values, and it can store either number or a recorded
+word. 
+2. The stack of words associated with names. This is essentially an analogue of simple functions.
+
+### Pushing data to the value stack
+Let's look how the data could be placed in these stacks. The first operation we need to look at 
+is the `Push` operation, which gets a number and place it in the stack. 
+
+To write this operation in a program, we just type several digits (negative number literals aren't supported):
+```
+10
+```
+Evaluation of such an operation will push a number `10` in a stack which we will visualize as `[| <- 10]`,
+where `|` is a bottom of a stack, and `<-` before the `10` symbolizes, that the `10` lies on a top of a bottom.
+
+If we then had a sequence of numbers after `10`, like that:
+```
+13 67 42
+```
+We would end up with a stack looking like `[| <- 10 <- 13 <- 67 <- 42]` after evaluation of a word.
+
+Now let's take a look at a different word which is similar to the previous, but has tokens `[` and `]` inside:
+```
+10 [ 13 67 42 ]
+```
+Evaluation of such a word would turn our stack into `[| <- 10 <- <13 67 42> ]`. The `<13 67 42>` thing is a recorded 
+word which ended up on a top of a stack. A token `[` marks a `StartRecord` operation, and a token `]` marks an 
+`EndRecord` operation. Anything between those are being recorded and then eventually will be placed on a stack. 
+There is a possibility of nested recordings, and in such situation tokens will end up recorded as well. 
+For example, such a word:
+```
+10 [ 13 [ 67 ] 42 ]
+```
+Evaluating it will turn our stack into `[| <- 10 <- <13 [ 67 ] 42> ]`, so the nested recorders ending up recorded 
+as is without any evaluation.
+
+### Pushing data to the word stack
+Now it's time to see how to bind a value or a word to a name.
+First, let's look at the situation when we have a stack in a form of `[ ... <- <36 67 42> ]`. This can be read as a 
+word `36 67 42` lying on a top of a stack, ignoring the fact if it were some data beneath or not.
+Now, if we evaluate an operation which looks like an any sequence of printable characters with a single character ':' 
+before it (it has a name `StoreWord`), for example:
+```
+:foo
+```
+Evaluating this operation will turn the word stack into `[| <- (foo: <36 67 42>)]`, which can be read as a pair of key 
+`foo` and a word `<36 67 42>` on top of a bottom of a stack.
+
+The next example word is the following:
+```
+1990 :birth-year
+```
+Evaluating this word will first push the value `1990` on a value stack, then pop int from a stack and turn an empty word stack into the `[| <- (birth-year: <1990>)]`, so as we can see, the value are ending up boxed as a word with a single `Push` operation.
+
+### Setting new value for a value
+In the case when there is a value (a word with a single `Push` operation) on a word stack, we also support a `SetVariable` operation which can replace a number which will be pushed during evaluation of a word, i. e. if we have a word stack of a form `[ ... <- (age: <35>) <- .. ]`, where `(age: <35>)` is the first occurance of a binging to `age` on top of a stack, 
+and if we also have a value stack of a form `[ ... <- 36 ]`, then if we evaluate an operation which looks like an any sequence of printable characters with a single character '!' before it ( and in our case it should be exactly `!age`), 
+then the value `36` would be popped from a stack and a word stack would be modified so it will look exactly like 
+`[ ... <- (age: <36>) <- .. ]`.
+
+### Value stack modifier primitives
+There is a several standard operations which help to write useful programs in FortikCpp:
+- `Dup` operation (duplicate) is written as `dup` and it turns stack of the form `[ ... <- $x]` 
+  into the stack of a form `[ ... <- $x <- $x]`, meaning it will make an exact copy of the top of a stack on top 
+  of a top of a stack.
+- `Drop` operation is written as `drop` and it turns stack of the form `[ ... <- $x]` into the stack of a form 
+  `[ ... ]`, meaning it literally drops the top of a stack.
+- `Swap` operation is written as `swap` and it swaps two the values on a top of a stack, i. e. it turns stack of 
+  the form `[ ... <- $x <- $y ]` into the stack of a form `[ ... <- $y <- $x ]`.
+- `Over` operation is written as `over` and it places the copy of a value below the top of a stack on top of a 
+  top of a stack, i. e. it turns stack of the form `[ ... <- $x <- $y ]` into the stack of a form 
+  `[ ... <- $x <- $y <- $x ]`.
+- `RotLeft` operation is written as `rot` and it turns stack of the form `[ ... <- $x <- $y <- $z ]` 
+  into the stack of a form `[ ... <- $y <- $z <- $x ]`.
+- `RotRight` operation is written as `rot-r` and it turns stack of the form `[ ... <- $x <- $y <- $z ]` 
+  into the stack of a form `[ ... <- $z <- $x <- $y ]`.
+
+### Arithmetic operations
+TODO
+
+### Comparison operations
+TODO
+
+### Control flow operations
+TODO
+
+### Printing operations
+TODO
+
+### Calling words
+TODO
