@@ -4,30 +4,23 @@
 
 This project is inspired by a beautiful [fortik](https://github.com/true-grue/fortik/tree/main).
 
-It's essentially a very small dialect of a Forth language, 
-which unfortunately lacks it's own official name. You can call 
-it a FortikCpp if you want. Or any other name, it doesn't matter 
-much to me.
+It’s essentially an interpreter of a very small dialect of the Forth language, which unfortunately lacks its own official name. You can call it FortikCpp if you want. Or any other name — it doesn’t really matter much to me. 
 
-It was written with an educational purpose, and also just for fun.
+This language interpreter was written for educational purposes and also just for fun. 
 
-There is no warranty on how safely this interpreter is implemented, 
-although I tried to be as careful as I can. Fell free to shame me in 
-an issue if you find some examples of programs which will cause it to 
-segmentation fault.
+There are no guarantees regarding the safety of the interpreter’s implementation, although I tried to be as careful as I can. Feel free to point out any issues in an issue tracker if you find examples of programs that will cause it to segmentation fault. 
 
 ## Quick introduction to the language
 
-The language has a very small set of primitive operations, and such operations 
-are supposed to be written as sequences of characters separated by whitespace. 
-These sequences of operations are known as words and they read strictly from left
-to right. 
+The language has a very small set of primitive operations, and these operations are written as sequences of printable characters separated by whitespace. These sequences of operations are known as words, and they are read strictly from left to right. 
 
-The key property of a program written in FortikCpp is that the data for 
-it should be ready. There are couple of stacks where the data could be looked up for:
-1. The first stack is a stack of values, and it can store either number or a recorded
-word. 
-2. The stack of words associated with names. This is essentially an analogue of simple functions.
+The key property of a program written in FortikCpp is that the data for each operation is ready before the evaluation of this operation. This is possible thanks to the stack nature of the language and to the so‑called Reverse Polish Notation, where operands of operations are always written before the operation that operates on them. This property helps to write complex expressions without the need for grouping by brackets, and it also helps to write programs concatenatively. 
+
+The places where the data for operations live are known as stacks, just like a stack of plates or a stack of playing cards. When someone wants to do something, they will first write commands to place some data on top of a stack, then run an operation. The operation, in turn, will take this data from the stack during its work, process it, and then store some result in the stack (or it might not store anything if no result is expected). 
+
+There are a couple of stacks where data can be looked up:
+1. The first stack is a stack of values, and it can store either a `number` or a `recorded word`.
+2. The stack of words associated with names. These words are essentially an analogue of simple functions. 
 
 ### Pushing data to the value stack
 Let's look how the data could be placed in these stacks. The first operation we need to look at 

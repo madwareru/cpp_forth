@@ -1,4 +1,5 @@
-#pragma once
+#ifndef INTERPRETER_H_
+#define INTERPRETER_H_
 
 #include <cstddef>
 #include <vector>
@@ -7,35 +8,8 @@
 #include <string_view>
 #include <cstdint>
 
-#define OP_CASES(X_TOKEN, X_CALL) \
-    X_CALL(Push, is_all_digits, eval_push) \
-    X_TOKEN(Dup, "dup", eval_dup) \
-    X_TOKEN(Drop, "drop", eval_drop) \
-    X_TOKEN(Swap, "swap", eval_swap) \
-    X_TOKEN(Over, "over", eval_over) \
-    X_TOKEN(RotLeft, "rot", eval_rot_left) \
-    X_TOKEN(RotRight, "rot-r", eval_rot_right) \
-    X_TOKEN(Add, "+", eval_add) \
-    X_TOKEN(Sub, "-", eval_sub) \
-    X_TOKEN(Mul, "*", eval_mul) \
-    X_TOKEN(Div, "/", eval_div) \
-    X_TOKEN(LessThan, "<", eval_less_than) \
-    X_TOKEN(Print, ".", eval_print) \
-    X_TOKEN(IfElse, "ifelse", eval_if_else) \
-    X_TOKEN(ForLoop, "for", eval_for) \
-    X_TOKEN(WhileLoop, "while", eval_while) \
-    X_TOKEN(StartRecord, "[", eval_start_record) \
-    X_TOKEN(EndRecord, "]", eval_end_record) \
-    X_CALL(StoreWord, is_store_word, eval_store_word) \
-    X_CALL(SetVar, is_set_var, eval_set_var) \
-    X_CALL(CallWord, is_call_word, eval_call_word)
-
 /// An operation tag used to mark all primitive operations
-enum class operation_tag_t {
-    #define OP_CASE(name, _, __) name,
-        OP_CASES(OP_CASE, OP_CASE)
-    #undef OP_CASE
-};
+enum class operation_tag_t;
 
 /// An operation along with its payload
 struct operation_t {
@@ -129,15 +103,46 @@ bool try_parse_operation(std::string_view sv, operation_t& op, interpreter_conte
 /// A function that tries to parse a word of operations
 void try_parse_word(const std::string& s, word_t& out_word, bool& success, interpreter_context_t& context);
 
-#ifdef interpreter_impl
+#endif //INTERPRETER_H_
+
+#ifdef INTERPRETER_IMPL
 
 #include <iostream>
+
+#define INTERPRETER_OP_CASES(X_TOKEN, X_CALL) \
+    X_CALL(Push, is_all_digits, eval_push) \
+    X_TOKEN(Dup, "dup", eval_dup) \
+    X_TOKEN(Drop, "drop", eval_drop) \
+    X_TOKEN(Swap, "swap", eval_swap) \
+    X_TOKEN(Over, "over", eval_over) \
+    X_TOKEN(RotLeft, "rot", eval_rot_left) \
+    X_TOKEN(RotRight, "rot-r", eval_rot_right) \
+    X_TOKEN(Add, "+", eval_add) \
+    X_TOKEN(Sub, "-", eval_sub) \
+    X_TOKEN(Mul, "*", eval_mul) \
+    X_TOKEN(Div, "/", eval_div) \
+    X_TOKEN(LessThan, "<", eval_less_than) \
+    X_TOKEN(Print, ".", eval_print) \
+    X_TOKEN(IfElse, "ifelse", eval_if_else) \
+    X_TOKEN(ForLoop, "for", eval_for) \
+    X_TOKEN(WhileLoop, "while", eval_while) \
+    X_TOKEN(StartRecord, "[", eval_start_record) \
+    X_TOKEN(EndRecord, "]", eval_end_record) \
+    X_CALL(StoreWord, is_store_word, eval_store_word) \
+    X_CALL(SetVar, is_set_var, eval_set_var) \
+    X_CALL(CallWord, is_call_word, eval_call_word)
 
 #define LOG_ERR(message) do { \
         std::cerr \
             << __LINE__  << ':' \
             << "Error: " << message << std::endl; \
     } while(0)
+
+enum class operation_tag_t {
+    #define OP_CASE(name, _, __) name,
+        INTERPRETER_OP_CASES(OP_CASE, OP_CASE)
+    #undef OP_CASE
+};
 
 value_t::value_t(std::int32_t n)
     : data(n) {}
@@ -702,7 +707,7 @@ bool eval_operation(operation_t op, interpreter_context_t& context) {
     switch(op.tag) {
         #define OP_CASE(name, _, function) \
             case operation_tag_t::name: return function(op.payload, context);
-        OP_CASES(OP_CASE, OP_CASE)
+        INTERPRETER_OP_CASES(OP_CASE, OP_CASE)
         #undef OP_CASE
         default: return false;
     }
@@ -719,7 +724,7 @@ bool try_parse_operation(std::string_view sv, operation_t& op, interpreter_conte
             op = { operation_tag_t::name, 0 }; \
             return true; \
         }
-    OP_CASES(OP_TOKEN, OP_CALL)
+    INTERPRETER_OP_CASES(OP_TOKEN, OP_CALL)
     #undef OP_TOKEN
     #undef OP_CALL
     return false;
@@ -826,6 +831,6 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
     return true;
 }
 
-#endif
+#undef INTERPRETER_OP_CASES
 
-#undef OP_CASES
+#endif // INTERPRETER_IMPL

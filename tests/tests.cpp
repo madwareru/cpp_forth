@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#define interpreter_impl
+#define INTERPRETER_IMPL
 #include <interpreter.h>
 
 #include <variant>

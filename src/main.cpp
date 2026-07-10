@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <string>
 
-#define interpreter_impl
+#define INTERPRETER_IMPL
 #include <interpreter.h>
 
 const std::string EXAMPLE_PROGRAM =
