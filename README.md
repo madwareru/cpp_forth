@@ -272,7 +272,95 @@ In addition, there are two standard words implemented using these primitive oper
   resulting in a stack of `[| <- 32]`.
 
 ### Printing operations
-TODO
+There is one primitive printing operation that outputs a number from the value stack to standard
+output:
+
+- `Print` operation is written as `.` and it pops a number from the top of a stack and prints
+  it to standard output followed by a newline. It turns a stack of the form `[ ... <- $x ]` into
+  `[ ... ]`. For example:
+  ```
+  42 .
+  ```
+  Evaluating this word would print `42` to standard output and result in an empty stack of
+  `[| ]`.
+
+  The `Print` operation is useful for debugging and for producing visible output during program
+  execution. For example, the following program prints all numbers from 1 to 5:
+  ```
+  1 5 [ i . ] for
+  ```
+  This iterates `i` from 1 to 5, printing each value. The output would be:
+  ```
+  1
+  2
+  3
+  4
+  5
+  ```
 
 ### Calling words
-TODO
+When a token in a program is not recognized as any of the primitive operations (such as `+`,
+`dup`, `ifelse`, etc.) and does not start with `:` or `!`, the interpreter treats it as a
+`CallWord` operation. This means that any sequence of printable characters that is not a
+primitive token or a special-prefixed token is interpreted as a call to a named word on the word
+stack.
+
+- `CallWord` operation is not written with a fixed literal — instead, any token that does not
+  match a primitive operation is treated as a call. When evaluated, it searches the word stack
+  from top to bottom for the first entry whose key matches the token's interned name. If found,
+  the associated word is evaluated. If no matching entry is found, an error is reported. For
+  example:
+  ```
+  [ 36 67 42 + ] :compute
+  compute
+  ```
+  Evaluating the word `compute` searches the word stack for the key `compute`, finds the
+  recorded word `<36 67 42 +>`, and evaluates it. The stack transitions as follows:
+  `[| <- 36 <- 67 <- 42]` → `[| <- 36 <- 109]`, resulting in a final stack of
+  `[| <- 36 <- 109]`.
+
+  Word calls can be nested, and a word can call itself recursively. For example, the following
+  program defines a factorial word that calls itself:
+  ```
+  [ :n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact
+  5 fact .
+  ```
+  Here, `fact` is defined recursively: if `n` is less than 2, it pushes `1`; otherwise it
+  computes `n * (n-1)!` by calling `fact` again. Evaluating `5 fact .` would print `120` to
+  standard output.
+
+  When a word is called, a `word_stack_guard_t` is used to restore the word stack to its
+  previous state after the call completes. This means that any new word bindings introduced
+  during the execution of a word (e.g., via `:name`) are removed when the call returns, keeping
+  the word stack scoped to the call.
+
+### Other standard operations not covered in prev sections
+In addition to the words covered in previous sections, there are three standard words that
+operate on numbers and are implemented using primitive operations:
+
+- `max` (maximum) is defined as
+  `[ :max-rhs :max-lhs max-lhs max-rhs > [ max-lhs ] [ max-rhs ] ifelse ] :max` and it pops two
+  numbers, compares them, and pushes the larger one. It turns a stack of the form
+  `[ ... <- $x <- $y ]` into `[ ... <- ($x > $y ? $x : $y) ]`. For example:
+  ```
+  3 7 max
+  ```
+  Evaluating this word would result in a stack of `[| <- 7]`.
+
+- `min` (minimum) is defined as
+  `[ :min-rhs :min-lhs min-lhs min-rhs < [ min-lhs ] [ min-rhs ] ifelse ] :min` and it pops two
+  numbers, compares them, and pushes the smaller one. It turns a stack of the form
+  `[ ... <- $x <- $y ]` into `[ ... <- ($x < $y ? $x : $y) ]`. For example:
+  ```
+  3 7 min
+  ```
+  Evaluating this word would result in a stack of `[| <- 3]`.
+
+- `abs` (absolute value) is defined as
+  `[ :abs-op abs-op 0 > [ abs-op ] [ abs-op neg ] ifelse ] :abs` and it pops a number, checks
+  whether it is greater than zero, and pushes the number itself if so, or its negated value
+  otherwise. It turns a stack of the form `[ ... <- $x ]` into `[ ... <- |$x| ]`. For example:
+  ```
+  42 neg abs
+  ```
+  Evaluating this word would result in a stack of `[| <- 42]`.
