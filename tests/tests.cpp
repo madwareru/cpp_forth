@@ -101,4 +101,74 @@ TEST_CASE("Correct programs are working as expected", "[eval]"){
     CHECK( eval_case_equals("[ :n 0 n [ dup inc + ] times inc ] :pow2 5 pow2", 32) );
     CHECK( eval_case_equals("0 :a 1 10 [ a i + !a ] for a", 55) );
     CHECK( eval_case_equals("[ :count 0 :a 1 :b [ b dup a + !b !a ] count swap times b ] :fib 6 fib", 13) );
+
+    // Arithmetic
+    CHECK( eval_case_equals("10 3 -"s, 7) );
+    CHECK( eval_case_equals("6 7 *"s, 42) );
+    CHECK( eval_case_equals("20 4 /"s, 5) );
+
+    // neg
+    CHECK( eval_case_equals("5 neg"s, -5) );
+    CHECK( eval_case_equals("0 neg"s, 0) );
+    CHECK( eval_case_equals("3 neg neg"s, 3) );
+
+    // abs
+    CHECK( eval_case_equals("5 abs"s, 5) );
+    CHECK( eval_case_equals("5 neg abs"s, 5) );
+    CHECK( eval_case_equals("0 abs"s, 0) );
+
+    // Comparison: <, >, <=, >=
+    CHECK( eval_case_equals("3 5 <"s, -1) );
+    CHECK( eval_case_equals("5 3 <"s, 0) );
+    CHECK( eval_case_equals("5 3 >"s, -1) );
+    CHECK( eval_case_equals("3 5 >"s, 0) );
+    CHECK( eval_case_equals("3 3 <="s, -1) );
+    CHECK( eval_case_equals("5 3 <="s, 0) );
+    CHECK( eval_case_equals("3 5 <="s, -1) );
+    CHECK( eval_case_equals("3 3 >="s, -1) );
+    CHECK( eval_case_equals("4 3 >="s, -1) );
+    CHECK( eval_case_equals("3 4 >="s, 0) );
+
+    // = and <>
+    CHECK( eval_case_equals("3 3 ="s, -1) );
+    CHECK( eval_case_equals("3 4 ="s, 0) );
+    CHECK( eval_case_equals("3 4 <>"s, -1) );
+    CHECK( eval_case_equals("3 3 <>"s, 0) );
+
+    // not
+    CHECK( eval_case_equals("0 not"s, -1) );
+    CHECK( eval_case_equals("5 not"s, 0) );
+
+    // and
+    CHECK( eval_case_equals("1 1 and"s, -1) );
+    CHECK( eval_case_equals("1 0 and"s, 0) );
+    CHECK( eval_case_equals("0 1 and"s, 0) );
+    CHECK( eval_case_equals("0 0 and"s, 0) );
+
+    // or
+    CHECK( eval_case_equals("1 0 or"s, -1) );
+    CHECK( eval_case_equals("0 1 or"s, -1) );
+    CHECK( eval_case_equals("0 0 or"s, 0) );
+    CHECK( eval_case_equals("1 1 or"s, -1) );
+
+    // max and min
+    CHECK( eval_case_equals("3 7 max"s, 7) );
+    CHECK( eval_case_equals("7 3 max"s, 7) );
+    CHECK( eval_case_equals("5 5 max"s, 5) );
+    CHECK( eval_case_equals("3 7 min"s, 3) );
+    CHECK( eval_case_equals("7 3 min"s, 3) );
+    CHECK( eval_case_equals("5 5 min"s, 5) );
+
+    // Stack manipulation: over, rot, rot-r
+    CHECK( eval_case_equals("1 2 over"s, 1) );
+    CHECK( eval_case_equals("1 2 3 rot"s, 1) );
+    CHECK( eval_case_equals("1 2 3 rot-r"s, 2) );
+
+    // when
+    CHECK( eval_case_equals("7 1 [ 42 ] when"s, 42) );
+    CHECK( eval_case_equals("7 0 [ 42 ] when"s, 7) );
+
+    // while
+    CHECK( eval_case_equals("5 :n [ n 0 > ] [ n dec !n ] while n"s, 0) );
+    CHECK( eval_case_equals("5 :n 0 :sum [ n 0 > ] [ sum n + !sum n dec !n ] while sum"s, 15) );
 }
