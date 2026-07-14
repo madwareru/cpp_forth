@@ -96,7 +96,51 @@ There are several standard operations which help to write useful programs in For
   into a stack of the form `[ ... <- $z <- $x <- $y ]`.
 
 ### Arithmetic operations
-TODO
+There are four standard arithmetic operations that work on numbers on the value stack:
+
+- `Add` operation is written as `+` and it pops two numbers from the top of a stack, adds them, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x + $y ]`. For example:
+```
+10 20 +
+```
+Evaluating this word would result in a stack of `[| <- 30]`.
+
+- `Sub` operation is written as `-` and it pops two numbers from the top of a stack, subtracts the second from the first, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x - $y ]`. For example:
+```
+50 15 -
+```
+Evaluating this word would result in a stack of `[| <- 35]`.
+
+- `Mul` operation is written as `*` and it pops two numbers from the top of a stack, multiplies them, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x * $y ]`. For example:
+```
+6 7 *
+```
+Evaluating this word would result in a stack of `[| <- 42]`.
+
+- `Div` operation is written as `/` and it pops two numbers from the top of a stack, divides the first by the second, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x / $y ]`. For example:
+```
+100 4 /
+```
+Evaluating this word would result in a stack of `[| <- 25]`. Note that dividing by zero will cause an error.
+
+In addition, there are three standard words implemented using primitive operations that behave as unary operations:
+
+- `neg` (negate) pops a number from the top of a stack and pushes its negated value. It turns a stack of the form `[ ... <- $x ]` into `[ ... <- -$x ]`. For example:
+```
+42 neg
+```
+Evaluating this word would result in a stack of `[| <- -42]`.
+
+- `inc` (increment) pops a number from the top of a stack and pushes the value increased by one. It turns a stack of the form `[ ... <- $x ]` into `[ ... <- $x + 1 ]`. For example:
+```
+7 inc
+```
+Evaluating this word would result in a stack of `[| <- 8]`.
+
+- `dec` (decrement) pops a number from the top of a stack and pushes the value decreased by one. It turns a stack of the form `[ ... <- $x ]` into `[ ... <- $x - 1 ]`. For example:
+```
+7 dec
+```
+Evaluating this word would result in a stack of `[| <- 6]`.
 
 ### Comparison operations
 TODO
