@@ -98,55 +98,178 @@ There are several standard operations which help to write useful programs in For
 ### Arithmetic operations
 There are four standard arithmetic operations that work on numbers on the value stack:
 
-- `Add` operation is written as `+` and it pops two numbers from the top of a stack, adds them, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x + $y ]`. For example:
-```
-10 20 +
-```
-Evaluating this word would result in a stack of `[| <- 30]`.
+- `Add` operation is written as `+` and it pops two numbers from the top of a stack, adds them, 
+  and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x + $y ]`. 
+  For example:
+  ```
+  10 20 +
+  ```
+  Evaluating this word would result in a stack of `[| <- 30]`.
 
-- `Sub` operation is written as `-` and it pops two numbers from the top of a stack, subtracts the second from the first, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x - $y ]`. For example:
-```
-50 15 -
-```
-Evaluating this word would result in a stack of `[| <- 35]`.
+- `Sub` operation is written as `-` and it pops two numbers from the top of a stack, subtracts 
+  the second from the first, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` 
+  into `[ ... <- $x - $y ]`. For example:
+  ```
+  50 15 -
+  ```
+  Evaluating this word would result in a stack of `[| <- 35]`.
 
-- `Mul` operation is written as `*` and it pops two numbers from the top of a stack, multiplies them, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x * $y ]`. For example:
-```
-6 7 *
-```
-Evaluating this word would result in a stack of `[| <- 42]`.
+- `Mul` operation is written as `*` and it pops two numbers from the top of a stack, multiplies them, 
+  and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x * $y ]`. 
+  For example:
+  ```
+  6 7 *
+  ```
+  Evaluating this word would result in a stack of `[| <- 42]`.
 
-- `Div` operation is written as `/` and it pops two numbers from the top of a stack, divides the first by the second, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- $x / $y ]`. For example:
-```
-100 4 /
-```
-Evaluating this word would result in a stack of `[| <- 25]`. Note that dividing by zero will cause an error.
+- `Div` operation is written as `/` and it pops two numbers from the top of a stack, 
+  divides the first by the second, and pushes the result. It turns a stack of the 
+  form `[ ... <- $x <- $y ]` into `[ ... <- $x / $y ]`. For example:
+  ```
+  100 4 /
+  ```
+  Evaluating this word would result in a stack of `[| <- 25]`. Note that dividing by zero will cause an error.
 
 In addition, there are three standard words implemented using primitive operations that behave as unary operations:
 
-- `neg` (negate) pops a number from the top of a stack and pushes its negated value. It turns a stack of the form `[ ... <- $x ]` into `[ ... <- -$x ]`. For example:
-```
-42 neg
-```
-Evaluating this word would result in a stack of `[| <- -42]`.
+- `neg` (negate) pops a number from the top of a stack and pushes its negated value. 
+  It turns a stack of the form `[ ... <- $x ]` into `[ ... <- -$x ]`. For example:
+  ```
+  42 neg
+  ```
+  Evaluating this word would result in a stack of `[| <- -42]`.
 
-- `inc` (increment) pops a number from the top of a stack and pushes the value increased by one. It turns a stack of the form `[ ... <- $x ]` into `[ ... <- $x + 1 ]`. For example:
-```
-7 inc
-```
-Evaluating this word would result in a stack of `[| <- 8]`.
+- `inc` (increment) pops a number from the top of a stack and pushes the value increased by one. 
+  It turns a stack of the form `[ ... <- $x ]` into `[ ... <- $x + 1 ]`. For example:
+  ```
+  7 inc
+  ```
+  Evaluating this word would result in a stack of `[| <- 8]`.
 
-- `dec` (decrement) pops a number from the top of a stack and pushes the value decreased by one. It turns a stack of the form `[ ... <- $x ]` into `[ ... <- $x - 1 ]`. For example:
-```
-7 dec
-```
-Evaluating this word would result in a stack of `[| <- 6]`.
+- `dec` (decrement) pops a number from the top of a stack and pushes the value decreased by one. 
+  It turns a stack of the     form `[ ... <- $x ]` into `[ ... <- $x - 1 ]`. For example:
+  ```
+  7 dec
+  ```
+  Evaluating this word would result in a stack of `[| <- 6]`.
 
 ### Comparison operations
-TODO
+There is one primitive comparison operation that works on numbers on the value stack, and
+three standard words implemented using it. All comparison operations return `-1` for true and
+`0` for false, which aligns with the truthiness convention used by control flow operations
+(non-zero is truthy, zero is falsy).
+
+- `LessThan` operation is written as `<` and it pops two numbers from the top of a stack,
+  compares them, and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]`
+  into `[ ... <- ($x < $y ? -1 : 0) ]`. For example:
+  ```
+  3 5 <
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 3 is less than 5.
+
+In addition, there are three standard words implemented using the `LessThan` primitive:
+
+- `>` (greater-than) is defined as `[ swap < ] :>` and it pops two numbers, swaps them, and
+  applies `<`. It turns a stack of the form `[ ... <- $x <- $y ]` into
+  `[ ... <- ($x > $y ? -1 : 0) ]`. For example:
+  ```
+  5 3 > 
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 5 is greater than 3.
+
+- `>=` (greater-or-equal) is defined as `[ < [ 0 ] [ 1 neg ] ifelse ] :>=` and it pops two
+  numbers, applies `<`, and then uses `ifelse` (we will cover this operation in a next section) 
+  to return `-1` when the result is falsy (i.e.
+
+  when the values are not less-than, meaning greater-or-equal) and `0` otherwise. It turns a
+  stack of the form `[ ... <- $x <- $y ]` into `[ ... <- ($x >= $y ? -1 : 0) ]`. For example:
+  ```
+  5 5 >=
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 5 is greater than or
+  equal to 5.
+
+- `<=` (less-or-equal) is defined as `[ > [ 0 ] [ 1 neg ] ifelse ] :<=` and it pops two
+  numbers, applies `>`, and then uses `ifelse` to return `-1` when the result is falsy (i.e.
+  when the values are not greater-than, meaning less-or-equal) and `0` otherwise. It turns a
+  stack of the form `[ ... <- $x <- $y ]` into `[ ... <- ($x <= $y ? -1 : 0) ]`. For example:
+  ```
+  3 5 <=
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 3 is less than or equal
+  to 5.
 
 ### Control flow operations
-TODO
+FortikCpp provides three primitive control flow operations that enable branching and looping.
+These operations work with recorded words (created using `[` and `]`) and numeric condition
+values on the value stack. A numeric value is considered truthy when it is non-zero, and falsy
+when it is zero.
+
+- `IfElse` operation is written as `ifelse` and it pops three values from the stack: first an
+  else word, then a then word, and finally a condition number. If the condition is truthy
+  (non-zero), the then word is evaluated; otherwise the else word is evaluated. It turns a stack
+  of the form `[ ... <- $cond <- $then <- $else ]` into the result of evaluating either `$then`
+  or `$else`. For example:
+  ```
+  5 3 < [ 10 ] [ 20 ] ifelse
+  ```
+  Since `5 3 <` pushes `0` (falsy, because 5 is not less than 3), the else word `[ 20 ]` is
+  evaluated, resulting in a stack of `[| <- 20]`.
+
+- `ForLoop` operation is written as `for` and it pops a body word, an end number, and a start
+  number from the stack. It then iterates from `start` to `end` (inclusive), evaluating the body
+  word on each iteration. During each iteration, the current index is available as a variable
+  named `i` on the word stack, meaning that referencing `i` inside the body pushes the current
+  iteration counter onto the value stack. It turns a stack of the form
+  `[ ... <- $start <- $end <- $body ]` into the result of evaluating `$body` for each value of
+  `i` from `$start` to `$end`. For example:
+  ```
+  0 1 5 [ i + ] for
+  ```
+  This iterates `i` from 1 to 5, adding `i` to the accumulator on each iteration. The stack
+  transitions as follows: `[| <- 0]` → `[| <- 1]` → `[| <- 3]` → `[| <- 6]` → `[| <- 10]` →
+  `[| <- 15]`, resulting in a final stack of `[| <- 15]`.
+
+- `WhileLoop` operation is written as `while` and it pops a body word and a condition word from
+  the stack. It repeatedly evaluates the condition word, which must leave a number on the value
+  stack. If that number is truthy (non-zero), the body word is evaluated. This cycle continues
+  until the condition evaluates to zero (falsy), at which point the loop terminates. It turns a
+  stack of the form `[ ... <- $cond <- $body ]` into the result of repeatedly evaluating `$body`
+  while `$cond` remains truthy. For example:
+  ```
+  0 [ dup 5 < ] [ inc ] while
+  ```
+  Here, the condition `[ dup 5 < ]` checks whether the top of the stack is less than 5, and the
+  body `[ inc ]` increments it. Starting from `0`, the loop increments until the value reaches
+  `5`, at which point `5 5 <` evaluates to `0` (falsy) and the loop stops, resulting in a stack
+  of `[| <- 5]`.
+
+In addition, there are two standard words implemented using these primitive operations:
+
+- `when` is defined as `[ [ ] ifelse ] :when` and it provides conditional execution without an
+  else branch. It expects a condition number and a then word on the stack. When called, it
+  pushes an empty word `[ ]` (which does nothing) as the else branch and then invokes `ifelse`.
+  If the condition is truthy, the then word is evaluated; otherwise nothing happens. It turns a
+  stack of the form `[ ... <- $cond <- $then ]` into the result of evaluating `$then` when
+  `$cond` is truthy, or leaves the stack unchanged otherwise. For example:
+  ```
+  3 5 < [ 42 ] when
+  ```
+  Since `3 5 <` pushes `-1` (truthy, because 3 is less than 5), the then word `[ 42 ]` is
+  evaluated, resulting in a stack of `[| <- 42]`.
+
+- `times` is defined as `[ 1 rot-r for ] :times` and it provides a simple counted loop. It
+  expects a count number and a body word on the stack. When called, it pushes `1`, rotates the
+  stack right (so the order becomes `1`, `count`, `body`), and then invokes `for`. This causes
+  the body to be evaluated `count` times, with the loop variable `i` ranging from `1` to
+  `count`. It turns a stack of the form `[ ... <- $count <- $body ]` into the result of
+  evaluating `$body` for each `i` from `1` to `$count`. For example:
+  ```
+  0 5 [ dup inc + ] times inc
+  ```
+  Starting from `0`, each iteration duplicates the top, increments the copy, and adds them
+  together. After 5 iterations the value is `31`, and the final `inc` brings it to `32`,
+  resulting in a stack of `[| <- 32]`.
 
 ### Printing operations
 TODO
