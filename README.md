@@ -305,43 +305,40 @@ When a token in a program is not recognized as any of the primitive operations (
 primitive token or a special-prefixed token is interpreted as a call to a named word on the word
 stack.
 
-- `CallWord` operation is not written with a fixed literal — instead, any token that does not
-  match a primitive operation is treated as a call. When evaluated, it searches the word stack
-  from top to bottom for the first entry whose key matches the token's interned name. If found,
-  the associated word is evaluated. If no matching entry is found, an error is reported. For
-  example:
-  ```
-  [ 36 67 42 + ] :compute
-  compute
-  ```
-  Evaluating the word `compute` searches the word stack for the key `compute`, finds the
-  recorded word `<36 67 42 +>`, and evaluates it. The stack transitions as follows:
-  `[| <- 36 <- 67 <- 42]` → `[| <- 36 <- 109]`, resulting in a final stack of
-  `[| <- 36 <- 109]`.
+When a word is called, the word stack is searched from top to bottom for the first entry whose
+name matches the token. If found, the associated word is evaluated. If no matching entry is
+found, an error is reported. For example:
+```
+[ 36 67 42 + ] :compute
+compute
+```
+Evaluating the word `compute` searches the word stack for the name `compute`, finds the
+recorded word `<36 67 42 +>`, and evaluates it. The stack transitions as follows:
+`[| <- 36 <- 67 <- 42]` → `[| <- 36 <- 109]`, resulting in a final stack of
+`[| <- 36 <- 109]`.
 
-  Word calls can be nested, and a word can call itself recursively. For example, the following
-  program defines a factorial word that calls itself:
-  ```
-  [ :n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact
-  5 fact .
-  ```
-  Here, `fact` is defined recursively: if `n` is less than 2, it pushes `1`; otherwise it
-  computes `n * (n-1)!` by calling `fact` again. Evaluating `5 fact .` would print `120` to
-  standard output.
+Word calls can be nested, and a word can call itself recursively. For example, the following
+program defines a factorial word that calls itself:
+```
+[ :n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact
+5 fact .
+```
+Here, `fact` is defined recursively: if `n` is less than 2, it pushes `1`; otherwise it
+computes `n * (n-1)!` by calling `fact` again. Evaluating `5 fact .` would print `120` to
+standard output.
 
-  When a word is called, a `word_stack_guard_t` is used to restore the word stack to its
-  previous state after the call completes. This means that any new word bindings introduced
-  during the execution of a word (e.g., via `:name`) are removed when the call returns, keeping
-  the word stack scoped to the call.
+When a word is called, any new word bindings introduced during the execution of that word
+(e.g., via `:name`) are removed when the call returns, keeping the word stack scoped to the
+call.
 
-  > **Warning:** Word scoping is **not lexical**. When a recorded word references another word
-  > by name, that reference is resolved at the time of the actual call, not at the time the
-  > word was recorded. This means that if a word `A` uses a word `B`, and `B` is later
-  > redefined, calling `A` will use the new definition of `B`. This late-binding behavior
-  > makes mutual recursion straightforward to set up — both words can reference each other
-  > before either is fully defined — but it also demands greater discipline from the
-  > programmer, as redefining a word may silently change the behavior of words that depend on
-  > it.
+> **Warning:** Word scoping is **not lexical**. When a recorded word references another word
+> by name, that reference is resolved at the time of the actual call, not at the time the
+> word was recorded. This means that if a word `A` uses a word `B`, and `B` is later
+> redefined, calling `A` will use the new definition of `B`. This late-binding behavior
+> makes mutual recursion straightforward to set up — both words can reference each other
+> before either is fully defined — but it also demands greater discipline from the
+> programmer, as redefining a word may silently change the behavior of words that depend
+> on it.
 
 ### Other standard operations not covered in prev sections
 In addition to the words covered in previous sections, there are three standard words that
