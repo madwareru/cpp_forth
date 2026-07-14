@@ -334,6 +334,15 @@ stack.
   during the execution of a word (e.g., via `:name`) are removed when the call returns, keeping
   the word stack scoped to the call.
 
+  > **Warning:** Word scoping is **not lexical**. When a recorded word references another word
+  > by name, that reference is resolved at the time of the actual call, not at the time the
+  > word was recorded. This means that if a word `A` uses a word `B`, and `B` is later
+  > redefined, calling `A` will use the new definition of `B`. This late-binding behavior
+  > makes mutual recursion straightforward to set up — both words can reference each other
+  > before either is fully defined — but it also demands greater discipline from the
+  > programmer, as redefining a word may silently change the behavior of words that depend on
+  > it.
+
 ### Other standard operations not covered in prev sections
 In addition to the words covered in previous sections, there are three standard words that
 operate on numbers and are implemented using primitive operations:
