@@ -155,7 +155,7 @@ In addition, there are three standard words implemented using primitive operatio
 
 ### Comparison operations
 There is one primitive comparison operation that works on numbers on the value stack, and
-three standard words implemented using it. All comparison operations return `-1` for true and
+six standard words implemented using it. All comparison operations return `-1` for true and
 `0` for false, which aligns with the truthiness convention used by control flow operations
 (non-zero is truthy, zero is falsy).
 
@@ -167,7 +167,7 @@ three standard words implemented using it. All comparison operations return `-1`
   ```
   Evaluating this word would result in a stack of `[| <- -1]`, because 3 is less than 5.
 
-In addition, there are three standard words implemented using the `LessThan` primitive:
+In addition, there are six standard words implemented using the `LessThan` primitive:
 
 - `>` (greater-than) is defined as `[ swap < ] :>` and it pops two numbers, swaps them, and
   applies `<`. It turns a stack of the form `[ ... <- $x <- $y ]` into
@@ -198,6 +198,36 @@ In addition, there are three standard words implemented using the `LessThan` pri
   ```
   Evaluating this word would result in a stack of `[| <- -1]`, because 3 is less than or equal
   to 5.
+
+- `=` (equal) is defined as
+  `[ over over < [ drop drop 0 ] [ > ] ifelse ] :=` and it pops two
+  numbers, checks whether they are equal, and pushes the result. It works by duplicating both
+  values and testing `<`: if the first is less than the second, they are not equal and `0` is
+  pushed, dropping initially duplicated opperands before that; otherwise `>` is applied. 
+  It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- ($x == $y ? -1 : 0) ]`. 
+  For example:
+  ```
+  5 5 =
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 5 is equal to 5.
+
+- `not` (logical negation) is defined as `[ 0 = [ 1 neg ] [ 0 ] ifelse ] :not` and it pops a
+  number, compares it with `0` using `=`, and pushes `-1` if the number was zero (falsy) or `0`
+  if the number was non-zero (truthy). It turns a stack of the form `[ ... <- $x ]` into
+  `[ ... <- ($x == 0 ? -1 : 0) ]`. For example:
+  ```
+  0 not
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 0 is falsy and `not`
+  turns it into truthy.
+
+- `<>` (not-equal) is defined as `[ = not ] :<>` and it pops two numbers, applies `=` to check
+  equality, and then applies `not` to negate the result. It turns a stack of the form
+  `[ ... <- $x <- $y ]` into `[ ... <- ($x != $y ? -1 : 0) ]`. For example:
+  ```
+  3 7 <>
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 3 is not equal to 7.
 
 ### Control flow operations
 FortikCpp provides three primitive control flow operations that enable branching and looping.
