@@ -199,11 +199,7 @@ In addition, there are six standard words implemented using the `LessThan` primi
   Evaluating this word would result in a stack of `[| <- -1]`, because 3 is less than or equal
   to 5.
 
-- `=` (equal) is defined as
-  `[ over over < [ drop drop 0 ] [ > ] ifelse ] :=` and it pops two
-  numbers, checks whether they are equal, and pushes the result. It works by duplicating both
-  values and testing `<`: if the first is less than the second, they are not equal and `0` is
-  pushed, dropping initially duplicated opperands before that; otherwise `>` is applied. 
+- `=` (equal) is defined as `[ - [ 0 ] [ 1 neg ] ifelse ] :=`. 
   It turns a stack of the form `[ ... <- $x <- $y ]` into `[ ... <- ($x == $y ? -1 : 0) ]`. 
   For example:
   ```
@@ -228,6 +224,33 @@ In addition, there are six standard words implemented using the `LessThan` primi
   3 7 <>
   ```
   Evaluating this word would result in a stack of `[| <- -1]`, because 3 is not equal to 7.
+
+In addition, there are two standard logical words implemented using the `=` and `not`
+standard words:
+
+- `and` (logical conjunction) is defined as
+  `[ 0 = [ drop 0 ] [ 0 = not ] ifelse ] :and` and it pops two numbers and pushes `-1` if both
+  are truthy (non-zero), or `0` otherwise. It first checks whether the top value is falsy; if
+  so, it drops the second value and pushes `0`. Otherwise, it checks whether the second value
+  is truthy and pushes the result. It turns a stack of the form `[ ... <- $x <- $y ]` into
+  `[ ... <- ($x && $y ? -1 : 0) ]`. For example:
+  ```
+  5 3 and
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because both 5 and 3 are
+  truthy.
+
+- `or` (logical disjunction) is defined as
+  `[ 0 = not [ drop 1 neg ] [ 0 = not ] ifelse ] :or` and it pops two numbers and pushes `-1`
+  if at least one is truthy (non-zero), or `0` otherwise. It first checks whether the top value
+  is truthy; if so, it drops the second value and pushes `-1`. Otherwise, it checks whether the
+  second value is truthy and pushes the result. It turns a stack of the form
+  `[ ... <- $x <- $y ]` into `[ ... <- ($x || $y ? -1 : 0) ]`. For example:
+  ```
+  0 7 or
+  ```
+  Evaluating this word would result in a stack of `[| <- -1]`, because 7 is truthy even though
+  0 is falsy.
 
 ### Control flow operations
 FortikCpp provides three primitive control flow operations that enable branching and looping.
@@ -302,12 +325,12 @@ In addition, there are two standard words implemented using these primitive oper
   resulting in a stack of `[| <- 32]`.
 
 ### Printing operations
-There is one primitive printing operation that outputs a number from the value stack to standard
-output:
+There are two primitive printing operations that produce output to standard output: `Print`
+for numbers and `PrintString` for text.
 
 - `Print` operation is written as `.` and it pops a number from the top of a stack and prints
-  it to standard output followed by a newline. It turns a stack of the form `[ ... <- $x ]` into
-  `[ ... ]`. For example:
+  it to standard output (without a trailing newline). It turns a stack of the form
+  `[ ... <- $x ]` into `[ ... ]`. For example:
   ```
   42 .
   ```
@@ -315,11 +338,12 @@ output:
   `[| ]`.
 
   The `Print` operation is useful for debugging and for producing visible output during program
-  execution. For example, the following program prints all numbers from 1 to 5:
+  execution. For example, the following program prints all numbers from 1 to 5, each on its own
+  line, by combining `.` with `.\n` (described below):
   ```
-  1 5 [ i . ] for
+  1 5 [ i . .\n ] for
   ```
-  This iterates `i` from 1 to 5, printing each value. The output would be:
+  This iterates `i` from 1 to 5, printing each value followed by a newline. The output would be:
   ```
   1
   2
@@ -327,6 +351,37 @@ output:
   4
   5
   ```
+
+- `PrintString` operation is written as `."..."` and it prints a string literal to standard
+  output. The text is everything between the opening `."` and the closing `"`, and is printed
+  verbatim without the surrounding quotes. It does not consume anything from the stack. For
+  example:
+  ```
+  ."Hello, World!"
+  ```
+  Evaluating this word would print `Hello, World!` to standard output, leaving the stack
+  unchanged.
+
+  Since `Print` does not append a newline, `PrintString` can be used to produce formatted
+  output. For example:
+  ```
+  ."Result: " 42 . .\n
+  ```
+  This prints `Result: 42` followed by a newline.
+
+  In addition to the `."..."` form, there are three escape-sequence forms of `PrintString`
+  for printing characters that cannot appear inside a string literal:
+
+  - `.\n` prints a newline character.
+  - `.\t` prints a tab character.
+  - `.\"` prints a double-quote character (`"`).
+
+  These are useful for controlling output formatting. For example, the following program
+  prints a quoted message on its own line:
+  ```
+  ."Hello, " .\" ."World" .\" ."!" .\n
+  ```
+  This prints `"Hello, "World"!"` followed by a newline.
 
 ### Calling words
 When a token in a program is not recognized as any of the primitive operations (such as `+`,

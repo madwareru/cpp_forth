@@ -130,6 +130,7 @@ void try_parse_word(const std::string& s, word_t& out_word, bool& success, inter
     X_TOKEN(EndRecord, "]", eval_end_record) \
     X_CALL(StoreWord, is_store_word, eval_store_word) \
     X_CALL(SetVar, is_set_var, eval_set_var) \
+    X_CALL(PrintString, is_print_string, eval_print_string) \
     X_CALL(CallWord, is_call_word, eval_call_word)
 
 #define LOG_ERR(message) do { \
@@ -237,6 +238,28 @@ bool is_set_var(std::string_view sv, std::int32_t& payload, interpreter_context_
         return false;
 
     auto sub_sv = sv.substr(1, sv.size() - 1);
+    return is_call_word(sub_sv, payload, context);
+}
+
+bool is_print_string(std::string_view sv, std::int32_t& payload, interpreter_context_t& context) {
+    if (sv.size() < 3)
+        return false;
+
+    if (sv == ".\\n") {
+        auto escaped_sv = std::string_view("\n");
+        return is_call_word(escaped_sv, payload, context);
+    } else if (sv == ".\\t") {
+        auto escaped_sv = std::string_view("\t");
+        return is_call_word(escaped_sv, payload, context);
+    } else if (sv == ".\\\"") {
+        auto escaped_sv = std::string_view("\"");
+        return is_call_word(escaped_sv, payload, context);
+    }
+
+    if (!sv.starts_with(".\"") || !sv.ends_with("\""))
+        return false;
+
+    auto sub_sv = sv.substr(2, sv.size() - 3);
     return is_call_word(sub_sv, payload, context);
 }
 
@@ -474,7 +497,7 @@ bool eval_print(std::int32_t payload, interpreter_context_t& context) {
         return false;
     }
 
-    std::cout << x << std::endl;
+    std::cout << x;
 
     return true;
 }
@@ -671,6 +694,16 @@ bool eval_set_var(std::int32_t word_id, interpreter_context_t& context) {
     return false;
 }
 
+bool eval_print_string(std::int32_t word_id, interpreter_context_t& context) {
+    if (context.word_recorder_nesting > 0) {
+        context.recording_word.emplace_back(operation_tag_t::PrintString, word_id);
+        return true;
+    }
+
+    std::cout << context.interner.get_interned_string(word_id);
+    return true;
+}
+
 bool eval_call_word(std::int32_t word_id, interpreter_context_t& context) {
     if (context.word_recorder_nesting > 0) {
         context.recording_word.emplace_back(operation_tag_t::CallWord, word_id);
@@ -753,24 +786,52 @@ void try_parse_word(const std::string& s, word_t& out_word, bool& success, inter
             return;
         }
 
-        std::size_t pos = s.find_first_of(" \t\n", start);
+        std::string_view sv = std::string_view(s).substr(start, s.size() - start);
+        if (sv.starts_with(".\"")) {
+            if (sv.size() < 3) {
+                LOG_ERR("Unclosed print string token");
+                success = false;
+                return;
+            }
 
-        std::string_view sv;
-        if (pos == std::string::npos) {
-            sv = std::string_view(s).substr(start, s.size() - start);
-            start = s.size();
+            // We do not support escaped in string literal for printing,
+            // When you need them you should use separate literals .\n, .\t or .\"
+            std::size_t pos = s.find('\"', start + 2);
+            if (pos == std::string::npos) {
+                LOG_ERR("Unclosed print string token");
+                success = false;
+                return;
+            }
+
+            sv = sv.substr(0, pos + 1 - start);
+            start = pos + 2;
+
+            if (operation_t op; try_parse_operation(sv, op, context)) {
+                word.push_back(op);
+                continue;
+            }
+
+            LOG_ERR("Failed to parse operation " << sv);
+            success = false;
+            return;
         } else {
-            sv = std::string_view(s).substr(start, pos - start);
-            start = pos + 1;
-        }
+            std::size_t pos = s.find_first_of(" \t\n", start);
+            if (pos == std::string::npos) {
+                start = s.size();
+            } else {
+                sv = sv.substr(0, pos - start);
+                start = pos + 1;
+            }
 
-        if (operation_t op; try_parse_operation(sv, op, context)) {
-            word.push_back(op);
-            continue;
-        }
+            if (operation_t op; try_parse_operation(sv, op, context)) {
+                word.push_back(op);
+                continue;
+            }
 
-        success = false;
-        return;
+            LOG_ERR("Failed to parse operation " << sv);
+            success = false;
+            return;
+        }
     } while(start < s.size());
 
     success = true;
@@ -788,12 +849,14 @@ bool eval_program(const std::string& program_text, std::int32_t& res) {
         "[ swap < ] :> "
         "[ < [ 0 ] [ 1 neg ] ifelse ] :>= "
         "[ > [ 0 ] [ 1 neg ] ifelse ] :<= "
-        "[ over over < [ drop drop 0 ] [ > ] ifelse ] := "
+        "[ - [ 0 ] [ 1 neg ] ifelse ] := "
         "[ 0 = [ 1 neg ] [ 0 ] ifelse ] :not "
         "[ = not ] :<> "
         "[ :max-rhs :max-lhs max-lhs max-rhs > [ max-lhs ] [ max-rhs ] ifelse ] :max "
         "[ :min-rhs :min-lhs min-lhs min-rhs < [ min-lhs ] [ min-rhs ] ifelse ] :min "
         "[ :abs-op abs-op 0 > [ abs-op ] [ abs-op neg ] ifelse ] :abs "
+        "[ 0 = [ drop 0 ] [ 0 = not ] ifelse ] :and "
+        "[ 0 = not [ drop 1 neg ] [ 0 = not ] ifelse ] :or "
         "[ [ ] ifelse ] :when "
         "[ 1 rot-r for ] :times ";
 

@@ -6,14 +6,15 @@
 #include <interpreter.h>
 
 const std::string EXAMPLE_PROGRAM =
+    ".\"Hello, \" .\\\" .\"World\" .\\\" .\"!\" .\\n "
     "[ :c :b :a b b * 4 a c * * - ] :D "
-    "5 neg 4 neg 1 D . "
+    "5 neg 4 neg 1 D . .\\n "
     "[ :n n 2 < [ 1 ] [ n n 1 - fact * ] ifelse ] :fact "
-    "5 fact . "
+    "5 fact . .\\n "
     "[ :n n [ n dec odd ] [ 1 ] ifelse ] :even "
     "[ :n n [ n dec even ] [ 0 ] ifelse ] :odd "
-    "42 dup even . odd . "
-    "2 dup dup * + . 42 67 drop "
+    "42 dup even . .\\n odd . .\\n "
+    "2 dup dup * + . .\\n 42 67 drop "
 ;
 
 int main() {
